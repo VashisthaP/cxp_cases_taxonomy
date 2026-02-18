@@ -9,8 +9,8 @@ const nextConfig = {
   // Enable React strict mode for better error detection during development
   reactStrictMode: true,
 
-  // Output standalone build for containerized Azure deployment
-  output: 'standalone',
+  // Output static export for Azure Static Web Apps
+  output: 'export',
 
   // Environment variables exposed to the frontend
   env: {
@@ -18,9 +18,9 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:7071/api',
   },
 
-  // Image optimization - disable for server-side rendering in Azure
+  // Image optimization - disable for static export
   images: {
-    unoptimized: false,
+    unoptimized: true,
     domains: [],
   },
 
