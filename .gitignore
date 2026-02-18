@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+frontend/.next/
+frontend/out/
+backend/dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+backend/local.settings.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Deployment artifacts
+*.zip
