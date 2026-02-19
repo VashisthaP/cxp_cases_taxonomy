@@ -1,7 +1,7 @@
 // ==========================================================================
 // Home Page - BC VM PCY - Case Taxonomy Insights
 // Main dashboard with navigation to case list, case entry, insights, and chatbot
-// Auth: Simulated SSO user header (production: replace with Entra ID SSO)
+// Auth: MSAL.js + PKCE (Entra ID SSO — secret-free, browser-native)
 // ==========================================================================
 "use client";
 
@@ -35,9 +35,9 @@ type ActiveView = 'dashboard' | 'new-case' | 'case-list' | 'insights';
 
 export default function HomePage() {
   // --------------------------------------------------------------------------
-  // Auth (Entra ID SSO via Azure Static Web Apps)
+  // Auth (MSAL.js + PKCE via Entra ID)
   // --------------------------------------------------------------------------
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading, login, logout } = useAuth();
 
   // --------------------------------------------------------------------------
   // State
@@ -87,6 +87,31 @@ export default function HomePage() {
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground">Authenticating...</p>
         </div>
+      </div>
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // Unauthenticated — show sign-in screen
+  // --------------------------------------------------------------------------
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <ClipboardList className="h-10 w-10 text-primary mx-auto mb-2" />
+            <CardTitle className="text-xl">BC VM PCY - Case Taxonomy Insights</CardTitle>
+            <CardDescription>
+              Sign in with your Microsoft account to continue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Button onClick={login} size="lg">
+              <User className="mr-2 h-4 w-4" />
+              Sign in with Microsoft
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

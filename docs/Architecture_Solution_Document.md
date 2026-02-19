@@ -1,7 +1,7 @@
 # BC VM PCY - Case Taxonomy Insights – Functional & Technical Architecture Solution Document
 
-**Document Version:** 1.1  
-**Date:** February 18, 2026  
+**Document Version:** 1.2  
+**Date:** February 19, 2026  
 **Project:** BC VM PCY - Case Taxonomy Insights – CXP Case Auditing System  
 **Classification:** Internal  
 
@@ -87,7 +87,7 @@ BC VM PCY - Case Taxonomy Insights provides:
 | Manager | Read + Analytics | View dashboard, query chatbot, export data |
 | System | API Access | Health checks, automated monitoring |
 
-> **Note:** The current version uses anonymous function-level auth. Role-based access control (RBAC) with Azure AD/Entra ID integration is planned for v2.0.
+> **Note:** The frontend enforces Entra ID SSO via MSAL.js + PKCE (Authorization Code Flow). Backend API endpoints currently use anonymous function-level auth. Role-based access control (RBAC) with JWT validation on the backend is planned for a future release.
 
 ### 2.3 Core Workflows
 
@@ -747,14 +747,73 @@ Source of Resolution: {source}. Reviewer Notes: {notes}. SNA: {sna}.
 
 ### 8.1 Authentication & Authorization
 
+#### 8.1.1 Frontend Authentication — MSAL.js + PKCE (Entra ID SSO)
+
+The frontend uses **Microsoft Authentication Library (MSAL.js v4)** with the **Authorization Code Flow + PKCE** — a fully secret-free, browser-native authentication method. This replaces the earlier SWA built-in auth approach and eliminates the need for a client secret.
+
+| Aspect | Implementation |
+|--------|---------------|
+| Auth Library | `@azure/msal-browser@4.28.2` + `@azure/msal-react@3.0.26` |
+| Auth Flow | Authorization Code + PKCE (public SPA client) |
+| Identity Provider | Microsoft Entra ID (Azure AD) — single-tenant |
+| App Registration | SPA platform with redirect URIs (no Web platform needed) |
+| Client ID | `dc467a59-8f04-4731-9d01-adb99e237436` |
+| Tenant ID | `9329c02a-4050-4798-93ae-b6e37b19af6d` |
+| Authority | `https://login.microsoftonline.com/9329c02a-4050-4798-93ae-b6e37b19af6d` |
+| Scopes | `openid`, `profile`, `email` |
+| Token Cache | `sessionStorage` (cleared on tab close) |
+| Login Method | `loginRedirect()` (full-page redirect to Entra ID) |
+| Token Refresh | `acquireTokenSilent()` (hidden iframe renewal) |
+| Client Secret | **None** — PKCE eliminates the need for secrets in SPAs |
+
+**Key Files:**
+
+| File | Purpose |
+|------|---------|
+| `frontend/src/lib/msal-config.ts` | MSAL configuration (client ID, authority, cache, scopes) |
+| `frontend/src/components/msal-auth-provider.tsx` | Singleton MSAL instance + React provider wrapper |
+| `frontend/src/hooks/use-auth.ts` | `useAuth()` hook — login, logout, profile, token refresh |
+
+**Authentication Flow:**
+
+```
+User visits app → MsalAuthProvider initializes → handleRedirectPromise()
+                                                      │
+                        ┌─────────────────────────────┘
+                        ▼
+             Cached account found?
+            ┌───Yes───┐    ┌────No────┐
+            ▼         │    ▼          │
+     Show dashboard   │   Show login  │
+                      │   screen      │
+                      │      │        │
+                      │      ▼        │
+                      │  loginRedirect() → Entra ID login page
+                      │      │
+                      │      ▼
+                      │  Redirect back with auth code
+                      │      │
+                      │      ▼
+                      │  MSAL exchanges code for tokens (PKCE)
+                      │      │
+                      │      ▼
+                      │  Set active account → Show dashboard
+                      └──────┘
+```
+
+#### 8.1.2 SWA Configuration
+
+The `staticwebapp.config.json` disables unused SWA built-in auth providers (GitHub, Twitter) and delegates all authentication to the MSAL.js client-side library. Route guards are enforced in React, not at the SWA level.
+
+#### 8.1.3 Backend API Auth
+
 | Aspect | Implementation |
 |--------|---------------|
 | Function Auth Level | Anonymous (open API) |
-| Frontend Auth | None (internal network assumption) |
 | CORS | Configured for frontend domain + localhost |
-| Planned (v2.0) | Azure AD/Entra ID with MSAL.js + managed identity |
+| Planned Enhancement | JWT validation middleware to verify Entra ID tokens on API calls |
 
-> **Security Note:** The current version is designed for internal Microsoft network access only. Production hardening with Azure AD authentication and managed identities is planned for v2.0.
+> **Security Note:** The frontend enforces Entra ID SSO before rendering the application. Backend API endpoints are currently open (anonymous auth level) and rely on CORS restrictions. Adding JWT bearer token validation on the backend is recommended for production hardening.
 
 ### 8.2 Data Security
 
@@ -772,6 +831,7 @@ Source of Resolution: {source}. Reviewer Notes: {notes}. SNA: {sna}.
 | MIME Sniffing | `X-Content-Type-Options: nosniff` header |
 | Referrer Policy | `strict-origin-when-cross-origin` |
 | Permissions Policy | Camera, microphone, geolocation disabled |
+| CSP frame-src | `'self' https://login.microsoftonline.com` (MSAL silent token renewal via iframe) |
 
 ### 8.3 Security Headers (Frontend)
 
@@ -967,6 +1027,8 @@ Developer Workstation
 | Dates | date-fns | 3.3+ |
 | Class Utilities | clsx + tailwind-merge | 2.1+ / 2.2+ |
 | Animations | tailwindcss-animate | 1.0+ |
+| Auth Library | @azure/msal-browser | 4.28+ |
+| Auth React Bindings | @azure/msal-react | 3.0+ |
 
 ### 11.3 Azure Services
 

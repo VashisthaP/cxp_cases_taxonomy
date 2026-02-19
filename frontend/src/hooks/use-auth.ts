@@ -1,44 +1,31 @@
 // ==========================================================================
-// useAuth Hook - Azure Static Web Apps Entra ID Authentication
-// Calls /.auth/me to retrieve the logged-in user's identity from SWA
-// built-in authentication (Entra ID / Azure AD).
+// useAuth Hook — MSAL.js + PKCE Entra ID Authentication
+// Uses @azure/msal-react to manage user identity via Authorization Code
+// Flow with PKCE. Fully secret-free — no client secret needed.
+// Replaces the previous SWA built-in /.auth/me approach.
 // ==========================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useMsal, useIsAuthenticated } from '@azure/msal-react';
+import { InteractionStatus, AccountInfo } from '@azure/msal-browser';
+import { loginRequest } from '@/lib/msal-config';
 
 // --------------------------------------------------------------------------
 // Types
 // --------------------------------------------------------------------------
 
-/** Claim from the SWA client principal */
-export interface AuthClaim {
-  typ: string;
-  val: string;
-}
-
-/** The clientPrincipal object returned by /.auth/me */
-export interface ClientPrincipal {
-  identityProvider: string;
-  userId: string;
-  userDetails: string; // email / UPN
-  userRoles: string[];
-  claims: AuthClaim[];
-}
-
-/** Parsed user profile from the authentication context */
+/** Parsed user profile from the MSAL authentication context */
 export interface UserProfile {
-  /** Display name (from 'name' claim, or derived from email) */
+  /** Display name from Entra ID */
   name: string;
   /** Email / UPN */
   email: string;
-  /** Provider (e.g., 'aad') */
-  provider: string;
-  /** Roles assigned */
-  roles: string[];
-  /** Whether this user has the 'authenticated' role */
+  /** Entra ID tenant */
+  tenantId: string;
+  /** Whether the user has been authenticated */
   isAuthenticated: boolean;
-  /** Raw client principal for advanced use */
-  raw?: ClientPrincipal;
+  /** Raw MSAL AccountInfo for advanced use */
+  raw?: AccountInfo;
 }
 
 /** Auth hook return value */
@@ -48,43 +35,24 @@ export interface AuthState {
   error: string | null;
   /** Force re-fetch user info */
   refresh: () => Promise<void>;
-  /** Redirect to login */
+  /** Redirect to Entra ID login */
   login: () => void;
-  /** Redirect to logout */
+  /** Redirect to Entra ID logout */
   logout: () => void;
 }
 
 // --------------------------------------------------------------------------
-// Helper: Parse name from claims or email
+// Helper: Extract user profile from MSAL account
 // --------------------------------------------------------------------------
 
-function extractName(principal: ClientPrincipal): string {
-  // Try the 'name' claim first (display name from Entra ID)
-  const nameClaim = principal.claims?.find(
-    (c) => c.typ === 'name' || c.typ === 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'
-  );
-  if (nameClaim?.val) return nameClaim.val;
-
-  // Try 'preferred_username' claim
-  const preferredUsername = principal.claims?.find(
-    (c) => c.typ === 'preferred_username'
-  );
-  if (preferredUsername?.val) return preferredUsername.val;
-
-  // Fall back to userDetails (email) - extract name part before @
-  if (principal.userDetails) {
-    const atIndex = principal.userDetails.indexOf('@');
-    if (atIndex > 0) {
-      return principal.userDetails
-        .substring(0, atIndex)
-        .split('.')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
-    }
-    return principal.userDetails;
-  }
-
-  return 'Unknown User';
+function accountToProfile(account: AccountInfo): UserProfile {
+  return {
+    name: account.name || account.username?.split('@')[0] || 'Unknown User',
+    email: account.username || '',
+    tenantId: account.tenantId || '',
+    isAuthenticated: true,
+    raw: account,
+  };
 }
 
 // --------------------------------------------------------------------------
@@ -92,74 +60,63 @@ function extractName(principal: ClientPrincipal): string {
 // --------------------------------------------------------------------------
 
 export function useAuth(): AuthState {
+  const { instance, accounts, inProgress } = useMsal();
+  const isAuthenticated = useIsAuthenticated();
+
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchUser = async () => {
-    try {
-      setLoading(true);
+  // Derive loading state from MSAL's interaction status
+  const loading = inProgress !== InteractionStatus.None;
+
+  // Sync user profile whenever accounts or auth state changes
+  useEffect(() => {
+    if (isAuthenticated && accounts.length > 0) {
+      const activeAccount = instance.getActiveAccount() || accounts[0];
+      setUser(accountToProfile(activeAccount));
       setError(null);
+    } else if (inProgress === InteractionStatus.None && !isAuthenticated) {
+      // Not authenticated and not in the middle of a flow
+      setUser(null);
+    }
+  }, [isAuthenticated, accounts, inProgress, instance]);
 
-      const response = await fetch('/.auth/me');
+  // Login via redirect (PKCE flow — no popup, full redirect)
+  const login = useCallback(() => {
+    instance.loginRedirect(loginRequest).catch((err) => {
+      console.error('[useAuth] Login redirect failed:', err);
+      setError(err.message);
+    });
+  }, [instance]);
 
-      if (!response.ok) {
-        // In local dev (no SWA), /.auth/me won't exist
-        throw new Error(`Auth endpoint returned ${response.status}`);
-      }
+  // Logout via redirect
+  const logout = useCallback(() => {
+    instance.logoutRedirect({
+      postLogoutRedirectUri: window.location.origin,
+    }).catch((err) => {
+      console.error('[useAuth] Logout redirect failed:', err);
+      setError(err.message);
+    });
+  }, [instance]);
 
-      const data = await response.json();
-      const principal: ClientPrincipal | null = data?.clientPrincipal;
-
-      if (principal) {
-        setUser({
-          name: extractName(principal),
-          email: principal.userDetails || '',
-          provider: principal.identityProvider || 'unknown',
-          roles: principal.userRoles || [],
-          isAuthenticated: principal.userRoles?.includes('authenticated') ?? false,
-          raw: principal,
+  // Refresh — silently acquire a new token to update account info
+  const refresh = useCallback(async () => {
+    try {
+      const activeAccount = instance.getActiveAccount();
+      if (activeAccount) {
+        const response = await instance.acquireTokenSilent({
+          ...loginRequest,
+          account: activeAccount,
         });
-      } else {
-        // No principal = not logged in. SWA route guard should redirect,
-        // but handle gracefully for local dev.
-        setUser(null);
+        if (response.account) {
+          setUser(accountToProfile(response.account));
+        }
       }
     } catch (err: any) {
-      console.warn('[useAuth] Could not fetch auth info:', err.message);
-      // In local development, fall back to a dev user
-      if (
-        typeof window !== 'undefined' &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-      ) {
-        setUser({
-          name: 'Local Dev User',
-          email: 'dev@localhost',
-          provider: 'dev',
-          roles: ['authenticated', 'anonymous'],
-          isAuthenticated: true,
-        });
-      } else {
-        setError(err.message);
-        setUser(null);
-      }
-    } finally {
-      setLoading(false);
+      console.warn('[useAuth] Silent token refresh failed:', err.message);
+      setError(err.message);
     }
-  };
+  }, [instance]);
 
-  useEffect(() => {
-    fetchUser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const login = () => {
-    window.location.href = '/.auth/login/aad';
-  };
-
-  const logout = () => {
-    window.location.href = '/.auth/logout';
-  };
-
-  return { user, loading, error, refresh: fetchUser, login, logout };
+  return { user, loading, error, refresh, login, logout };
 }
