@@ -156,7 +156,7 @@ export async function chatCompletion(
     : 'No matching cases found in the database.';
 
   // System prompt for the RAG chatbot
-  const systemPrompt = `You are an AI assistant for the War Room Case Taxonomy Portal, an internal auditing tool for CXP support cases.
+  const systemPrompt = `You are an AI assistant for BC VM PCY - Case Taxonomy Insights, an internal auditing tool for support cases.
 
 Your role is to help users analyze, summarize, and query their case data. You have access to the following case data from the database:
 

@@ -47,7 +47,7 @@ export function ChatSidebar({ onClose }: ChatSidebarProps) {
       id: 'system-welcome',
       role: 'assistant',
       content:
-        'Hello! I\'m your AI assistant for the War Room Case Taxonomy Portal. I can help you:\n\n' +
+        'Hello! I\'m your AI assistant for BC VM PCY - Case Taxonomy Insights. I can help you:\n\n' +
         '- **Query case data** (e.g., "How many cases are idle > 8 hours?")\n' +
         '- **Summarize patterns** (e.g., "What are common blockers for PG-related cases?")\n' +
         '- **Find specific cases** (e.g., "Show me all Break fix cases assigned to Customer")\n' +

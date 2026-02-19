@@ -1,5 +1,5 @@
 // ==========================================================================
-// Home Page - War Room Case Taxonomy Portal
+// Home Page - BC VM PCY - Case Taxonomy Insights
 // Main dashboard with navigation to case list, case entry, insights, and chatbot
 // Auth: Simulated SSO user header (production: replace with Entra ID SSO)
 // ==========================================================================
@@ -105,8 +105,7 @@ export default function HomePage() {
           <div className="flex items-center gap-3">
             <ClipboardList className="h-6 w-6 text-primary" />
             <div>
-              <h1 className="text-lg font-semibold">War Room Case Taxonomy</h1>
-              <p className="text-xs text-muted-foreground">CXP Auditing Portal</p>
+              <h1 className="text-lg font-semibold">BC VM PCY - Case Taxonomy Insights</h1>
             </div>
           </div>
 
@@ -195,7 +194,7 @@ export default function HomePage() {
                 <div>
                   <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
                   <p className="text-muted-foreground">
-                    Overview of war room case audit metrics and taxonomy distribution.
+                    Overview of case audit metrics and taxonomy distribution.
                   </p>
                 </div>
 
@@ -333,7 +332,7 @@ export default function HomePage() {
                 <div>
                   <h2 className="text-2xl font-bold tracking-tight">Case Information</h2>
                   <p className="text-muted-foreground">
-                    Fill in all taxonomy fields for a war room case.
+                    Fill in all taxonomy fields for a case entry.
                   </p>
                 </div>
                 <CaseForm
@@ -353,7 +352,7 @@ export default function HomePage() {
                   <div>
                     <h2 className="text-2xl font-bold tracking-tight">All Cases</h2>
                     <p className="text-muted-foreground">
-                      Browse, search, and manage all war room cases.
+                      Browse, search, and manage all cases.
                     </p>
                   </div>
                   <Button onClick={() => setActiveView('new-case')}>

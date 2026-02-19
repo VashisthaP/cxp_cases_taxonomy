@@ -10,8 +10,8 @@ import { Toaster } from '@/components/ui/toaster';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'War Room Case Taxonomy Portal',
-  description: 'Internal auditing tool for CXP case review and taxonomy classification',
+  title: 'BC VM PCY - Case Taxonomy Insights',
+  description: 'Internal case taxonomy insights and auditing portal',
 };
 
 export default function RootLayout({

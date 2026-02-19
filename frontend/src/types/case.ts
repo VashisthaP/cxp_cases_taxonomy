@@ -1,5 +1,5 @@
 // ==========================================================================
-// War Room Case Taxonomy - TypeScript Types & Interfaces
+// BC VM PCY - Case Taxonomy Insights - TypeScript Types & Interfaces
 // Full data taxonomy as specified in the requirements
 // ==========================================================================
 
@@ -83,7 +83,7 @@ export type SourceOfResolution =
 // --------------------------------------------------------------------------
 
 /**
- * Represents a single war room case with all taxonomy fields.
+ * Represents a single case with all taxonomy fields.
  * This interface maps directly to the PostgreSQL `cases` table.
  */
 export interface CaseData {

@@ -6,7 +6,7 @@
 import { z } from 'zod';
 
 /**
- * Full Zod schema for the War Room Case taxonomy.
+ * Full Zod schema for the Case taxonomy.
  * Implements:
  *  - Required/unique Case ID
  *  - All dropdown enums
