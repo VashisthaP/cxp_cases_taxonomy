@@ -1,14 +1,18 @@
 // ==========================================================================
 // CaseList Component - Paginated, searchable, filterable case list
 // Displays all cases with key taxonomy fields and edit/delete actions
+// EDIT BUG FIX: Renders CaseForm in a slide-over dialog when editing
+// Removed: Next Owner column (field dropped from schema)
 // ==========================================================================
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { listCases, deleteCase } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import type { CaseData, PaginatedResponse } from '@/types/case';
 import { CASE_TYPE_OPTIONS, ISSUE_TYPE_OPTIONS } from '@/types/case';
+import { CaseFormValues } from '@/lib/validation';
+import { CaseForm } from '@/components/case-form';
 
 // UI Components
 import { Button } from '@/components/ui/button';
@@ -33,7 +37,32 @@ import {
   RefreshCw,
   CheckCircle2,
   XCircle,
+  X,
 } from 'lucide-react';
+
+// --------------------------------------------------------------------------
+// Helper: Map CaseData (from DB) to CaseFormValues (for the form)
+// --------------------------------------------------------------------------
+function caseDataToFormValues(c: CaseData): CaseFormValues {
+  return {
+    case_id: c.case_id,
+    case_reviewed: c.case_reviewed ?? false,
+    ta_name: c.ta_name ?? '',
+    ta_reviewer_notes: c.ta_reviewer_notes ?? '',
+    case_type: c.case_type ?? '',
+    issue_type: c.issue_type ?? '',
+    fqr_accurate: c.fqr_accurate ?? '',
+    fqr_help_resolve: c.fqr_help_resolve ?? '',
+    idle_over_8_hours: c.idle_over_8_hours ?? false,
+    idleness_reason: c.idleness_reason ?? '',
+    collab_wait_reason: c.collab_wait_reason ?? '',
+    pg_wait_reason: c.pg_wait_reason ?? '',
+    case_complexity: c.case_complexity ?? '',
+    icm_linked: c.icm_linked ?? false,
+    next_action_sna: c.next_action_sna ?? '',
+    source_of_resolution: c.source_of_resolution ?? '',
+  };
+}
 
 // --------------------------------------------------------------------------
 // Component
@@ -58,9 +87,15 @@ export function CaseList() {
   const [filterIssueType, setFilterIssueType] = useState<string>('all');
   const [filterReviewed, setFilterReviewed] = useState<string>('all');
 
-  // Edit modal state
+  // Edit modal state — now actually used to render the edit form
   const [editingCase, setEditingCase] = useState<CaseData | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Memoize initial form values for the editing case
+  const editFormValues = useMemo(
+    () => (editingCase ? caseDataToFormValues(editingCase) : undefined),
+    [editingCase]
+  );
 
   // --------------------------------------------------------------------------
   // Fetch cases with current filters/pagination
@@ -145,10 +180,59 @@ export function CaseList() {
   };
 
   // --------------------------------------------------------------------------
+  // Edit success handler
+  // --------------------------------------------------------------------------
+  const handleEditSuccess = () => {
+    setEditingCase(null);
+    fetchCases(); // Refresh the list to show updated data
+    toast({
+      title: 'Case Updated',
+      description: 'Case has been updated successfully.',
+      variant: 'success' as any,
+    });
+  };
+
+  // --------------------------------------------------------------------------
   // Render
   // --------------------------------------------------------------------------
   return (
     <div className="space-y-4">
+      {/* ================================================================== */}
+      {/* EDIT DIALOG (slide-over overlay) - renders CaseForm in edit mode */}
+      {/* FIX: Previously editingCase state was set but no UI was rendered   */}
+      {/* ================================================================== */}
+      {editingCase && editFormValues && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setEditingCase(null)}
+          />
+          {/* Slide-over panel */}
+          <div className="relative w-full max-w-4xl bg-background shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300">
+            <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b bg-background">
+              <h2 className="text-lg font-semibold">
+                Edit Case: {editingCase.case_id}
+              </h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setEditingCase(null)}
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="p-6">
+              <CaseForm
+                initialData={editFormValues}
+                isEditMode={true}
+                onSuccess={handleEditSuccess}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ================================================================== */}
       {/* Filters Bar */}
       {/* ================================================================== */}
@@ -239,7 +323,7 @@ export function CaseList() {
       </Card>
 
       {/* ================================================================== */}
-      {/* Cases Table */}
+      {/* Cases Table (Removed "Next Owner" column — field dropped) */}
       {/* ================================================================== */}
       <Card>
         <CardContent className="pt-6">
@@ -261,12 +345,11 @@ export function CaseList() {
                 <thead>
                   <tr className="border-b text-left">
                     <th className="pb-3 font-medium">Case ID</th>
-                    <th className="pb-3 font-medium">Reviewed</th>
+                    <th className="pb-3 font-medium">Status</th>
                     <th className="pb-3 font-medium">TA Name</th>
                     <th className="pb-3 font-medium">Case Type</th>
                     <th className="pb-3 font-medium">Issue Type</th>
                     <th className="pb-3 font-medium">Idle{'>'}8h</th>
-                    <th className="pb-3 font-medium">Next Owner</th>
                     <th className="pb-3 font-medium">Resolution</th>
                     <th className="pb-3 font-medium text-right">Actions</th>
                   </tr>
@@ -277,9 +360,15 @@ export function CaseList() {
                       <td className="py-3 font-mono text-xs">{c.case_id}</td>
                       <td className="py-3">
                         {c.case_reviewed ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-700">
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Reviewed
+                          </Badge>
                         ) : (
-                          <XCircle className="h-4 w-4 text-muted-foreground" />
+                          <Badge variant="outline" className="text-xs text-yellow-600 border-yellow-400">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Pending
+                          </Badge>
                         )}
                       </td>
                       <td className="py-3">{c.ta_name || '-'}</td>
@@ -304,12 +393,11 @@ export function CaseList() {
                           <span className="text-muted-foreground text-xs">No</span>
                         )}
                       </td>
-                      <td className="py-3 text-xs">{c.next_action_owner || '-'}</td>
                       <td className="py-3">
                         {c.source_of_resolution ? (
                           <Badge
-                            variant={c.source_of_resolution === 'Still Open' ? 'warning' : 'success'}
-                            className="text-xs"
+                            variant={c.source_of_resolution === 'Still Open' ? 'outline' : 'secondary'}
+                            className={`text-xs ${c.source_of_resolution === 'Still Open' ? 'text-orange-600 border-orange-400' : ''}`}
                           >
                             {c.source_of_resolution}
                           </Badge>

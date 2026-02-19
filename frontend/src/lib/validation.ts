@@ -69,11 +69,7 @@ export const caseFormSchema = z.object({
     'Incorrect PG', 'Not Triaged', 'Unsure', 'In Progress', ''
   ]).default(''),
 
-  // 10. Engineer Workload / Unresponsive Cx (checkboxes)
-  engineer_workload: z.boolean().default(false),
-  unresponsive_cx: z.boolean().default(false),
-
-  // 11. Case Complexity
+  // 10. Case Complexity
   case_complexity: z.enum([
     'Aged-Not complex', 'Transferred', 'Collabs', 'PG Engagement',
     'Integration Related', ''
@@ -82,15 +78,10 @@ export const caseFormSchema = z.object({
   // 12. ICM Linked - Boolean
   icm_linked: z.boolean().default(false),
 
-  // 13. Next Action Owner
-  next_action_owner: z.enum([
-    'Engineer', 'Customer', 'TA/SME', 'Manager', ''
-  ]).default(''),
-
-  // 14. Next Action for Engineer (SNA)
+  // 12. Next Action for Engineer (SNA)
   next_action_sna: z.string().max(5000, 'SNA must be 5000 characters or less').default(''),
 
-  // 15. Source of Resolution
+  // 13. Source of Resolution
   source_of_resolution: z.enum([
     'ASC FQR', 'Wiki/Deep Research Agent', 'Ava Post', 'Collaboration Task',
     'ICM', 'Diagnostics Tools', 'Live Cx', 'Still Open', ''
@@ -163,11 +154,8 @@ export const defaultCaseValues: CaseFormValues = {
   idleness_reason: '',
   collab_wait_reason: '',
   pg_wait_reason: '',
-  engineer_workload: false,
-  unresponsive_cx: false,
   case_complexity: '',
   icm_linked: false,
-  next_action_owner: '',
   next_action_sna: '',
   source_of_resolution: '',
 };

@@ -4,7 +4,7 @@
 // ==========================================================================
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { CaseData, ApiResponse, PaginatedResponse, ChatMessage, ChatRequest, DashboardStats } from '@/types/case';
+import { CaseData, ApiResponse, PaginatedResponse, ChatMessage, ChatRequest, DashboardStats, InsightsData } from '@/types/case';
 import { CaseFormValues } from '@/lib/validation';
 
 // --------------------------------------------------------------------------
@@ -180,6 +180,14 @@ export async function listCases(params: {
  */
 export async function getDashboardStats(): Promise<ApiResponse<DashboardStats>> {
   const response = await apiClient.get<ApiResponse<DashboardStats>>('/dashboard/stats');
+  return response.data;
+}
+
+/**
+ * Get dashboard insights data (FQR analysis, idle breakdown, resolution sources, etc.).
+ */
+export async function getDashboardInsights(): Promise<ApiResponse<InsightsData>> {
+  const response = await apiClient.get<ApiResponse<InsightsData>>('/dashboard/insights');
   return response.data;
 }
 

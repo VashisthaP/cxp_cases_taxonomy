@@ -78,12 +78,12 @@ async function createCase(
         case_id, case_reviewed, ta_name, ta_reviewer_notes,
         case_type, issue_type, fqr_accurate, fqr_help_resolve,
         idle_over_8_hours, idleness_reason, collab_wait_reason, pg_wait_reason,
-        engineer_workload, unresponsive_cx, case_complexity, icm_linked,
-        next_action_owner, next_action_sna, source_of_resolution, embedding
+        case_complexity, icm_linked,
+        next_action_sna, source_of_resolution, reviewer_email, embedding
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-        $13, $14, $15, $16, $17, $18, $19,
-        ${embedding.length > 0 ? '$20' : 'NULL'}
+        $13, $14, $15, $16, $17,
+        ${embedding.length > 0 ? '$18' : 'NULL'}
       )
       RETURNING *`,
       [
@@ -99,13 +99,11 @@ async function createCase(
         body.idleness_reason ?? '',
         body.collab_wait_reason ?? '',
         body.pg_wait_reason ?? '',
-        body.engineer_workload ?? false,
-        body.unresponsive_cx ?? false,
         body.case_complexity ?? '',
         body.icm_linked ?? false,
-        body.next_action_owner ?? '',
         body.next_action_sna ?? '',
         body.source_of_resolution ?? '',
+        body.reviewer_email ?? '',
         ...(embedding.length > 0 ? [JSON.stringify(embedding)] : []),
       ]
     );
@@ -205,8 +203,8 @@ async function listCases(
       `SELECT id, case_id, case_reviewed, ta_name, ta_reviewer_notes,
               case_type, issue_type, fqr_accurate, fqr_help_resolve,
               idle_over_8_hours, idleness_reason, collab_wait_reason, pg_wait_reason,
-              engineer_workload, unresponsive_cx, case_complexity, icm_linked,
-              next_action_owner, next_action_sna, source_of_resolution,
+              case_complexity, icm_linked,
+              next_action_sna, source_of_resolution, reviewer_email,
               created_at, updated_at
        FROM cases ${whereClause}
        ORDER BY created_at DESC
@@ -255,8 +253,8 @@ async function getCaseById(
       `SELECT id, case_id, case_reviewed, ta_name, ta_reviewer_notes,
               case_type, issue_type, fqr_accurate, fqr_help_resolve,
               idle_over_8_hours, idleness_reason, collab_wait_reason, pg_wait_reason,
-              engineer_workload, unresponsive_cx, case_complexity, icm_linked,
-              next_action_owner, next_action_sna, source_of_resolution,
+              case_complexity, icm_linked,
+              next_action_sna, source_of_resolution, reviewer_email,
               created_at, updated_at
        FROM cases WHERE case_id = $1`,
       [caseId]
@@ -320,7 +318,7 @@ async function updateCase(
       const embeddingText = buildCaseEmbeddingText({ ...body, case_id: caseId });
       const embedding = await generateEmbedding(embeddingText);
       if (embedding.length > 0) {
-        embeddingClause = ', embedding = $20';
+        embeddingClause = ', embedding = $17';
         embeddingParams.push(JSON.stringify(embedding));
       }
     } catch (embeddingError: any) {
@@ -340,21 +338,18 @@ async function updateCase(
         idleness_reason = $9,
         collab_wait_reason = $10,
         pg_wait_reason = $11,
-        engineer_workload = $12,
-        unresponsive_cx = $13,
-        case_complexity = $14,
-        icm_linked = $15,
-        next_action_owner = $16,
-        next_action_sna = $17,
-        source_of_resolution = $18,
+        case_complexity = $12,
+        icm_linked = $13,
+        next_action_sna = $14,
+        source_of_resolution = $15,
         updated_at = NOW()
         ${embeddingClause}
-      WHERE case_id = $19
+      WHERE case_id = $16
       RETURNING id, case_id, case_reviewed, ta_name, ta_reviewer_notes,
                 case_type, issue_type, fqr_accurate, fqr_help_resolve,
                 idle_over_8_hours, idleness_reason, collab_wait_reason, pg_wait_reason,
-                engineer_workload, unresponsive_cx, case_complexity, icm_linked,
-                next_action_owner, next_action_sna, source_of_resolution,
+                case_complexity, icm_linked,
+                next_action_sna, source_of_resolution, reviewer_email,
                 created_at, updated_at`,
       [
         body.case_reviewed ?? false,
@@ -368,11 +363,8 @@ async function updateCase(
         body.idleness_reason ?? '',
         body.collab_wait_reason ?? '',
         body.pg_wait_reason ?? '',
-        body.engineer_workload ?? false,
-        body.unresponsive_cx ?? false,
         body.case_complexity ?? '',
         body.icm_linked ?? false,
-        body.next_action_owner ?? '',
         body.next_action_sna ?? '',
         body.source_of_resolution ?? '',
         caseId,

@@ -67,13 +67,6 @@ export type CaseComplexity =
   | 'PG Engagement'
   | 'Integration Related';
 
-/** Next Action Owner dropdown options */
-export type NextActionOwner =
-  | 'Engineer'
-  | 'Customer'
-  | 'TA/SME'
-  | 'Manager';
-
 /** Source of Resolution dropdown options */
 export type SourceOfResolution =
   | 'ASC FQR'
@@ -130,26 +123,20 @@ export interface CaseData {
   /** 9c. Why waiting for PG (conditional - shown when idleness_reason = "PG") */
   pg_wait_reason: PgWaitReason | '';
 
-  /** 10. Engineer Workload checkbox */
-  engineer_workload: boolean;
-
-  /** 10. Unresponsive Cx checkbox */
-  unresponsive_cx: boolean;
-
-  /** 11. Case Complexity - Dropdown selection */
+  /** 10. Case Complexity - Dropdown selection */
   case_complexity: CaseComplexity | '';
 
   /** 12. ICM Linked - Boolean toggle */
   icm_linked: boolean;
 
-  /** 13. Next Action Owner - Dropdown selection */
-  next_action_owner: NextActionOwner | '';
-
-  /** 14. Next Action for Engineer (SNA) - Textarea */
+  /** 12. Next Action for Engineer (SNA) - Textarea */
   next_action_sna: string;
 
-  /** 15. Source of Resolution - Dropdown selection */
+  /** 13. Source of Resolution - Dropdown selection */
   source_of_resolution: SourceOfResolution | '';
+
+  /** Reviewer email (populated from SSO/mock auth) */
+  reviewer_email?: string;
 
   /** Auto-generated fields */
   id?: number;
@@ -202,6 +189,43 @@ export interface DashboardStats {
   casesByType: Record<string, number>;
   casesByIssueType: Record<string, number>;
   avgResolutionBySource: Record<string, number>;
+}
+
+/** Insights data returned by GET /api/dashboard/insights */
+export interface InsightsData {
+  // Idle Time >8h Analysis
+  idleByIssueType: Array<{
+    issue_type: string; total_cases: string; idle_count: string;
+    awaiting_cx: string; engineer_workload: string; collab_wait: string;
+    pg_wait: string; unsure: string;
+  }>;
+  idleByComplexity: Array<{
+    complexity: string; total_cases: string; idle_count: string;
+    awaiting_cx: string; engineer_workload: string; collab_wait: string;
+    pg_wait: string; unsure: string;
+  }>;
+  // Source of Resolution
+  resByIssueType: Array<{
+    issue_type: string; total_cases: string; still_open: string;
+    asc_fqr: string; live_troubleshoot: string; icm_collab_other: string;
+  }>;
+  resByComplexity: Array<{
+    complexity: string; total_cases: string; still_open: string;
+    dependency_driven: string;
+  }>;
+  // FQR Accuracy (New Cases Only)
+  fqrByIssueType: Array<{
+    issue_type: string; new_cases: string; fqr_accurate_right: string;
+    fqr_helped: string; help_pct: string;
+  }>;
+  fqrByComplexity: Array<{
+    complexity: string; total_cases: string; fqr_helped: string;
+    help_pct: string;
+  }>;
+  // Reviewer Stats
+  reviewerStats: Array<{
+    reviewer: string; total_cases: string; reviewed: string; pending: string;
+  }>;
 }
 
 // --------------------------------------------------------------------------
@@ -269,13 +293,6 @@ export const CASE_COMPLEXITY_OPTIONS: CaseComplexity[] = [
   'Collabs',
   'PG Engagement',
   'Integration Related',
-];
-
-export const NEXT_ACTION_OWNER_OPTIONS: NextActionOwner[] = [
-  'Engineer',
-  'Customer',
-  'TA/SME',
-  'Manager',
 ];
 
 export const SOURCE_OF_RESOLUTION_OPTIONS: SourceOfResolution[] = [

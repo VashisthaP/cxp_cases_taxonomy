@@ -107,7 +107,6 @@ export function buildCaseEmbeddingText(caseData: Record<string, any>): string {
     caseData.pg_wait_reason ? `PG Wait Reason: ${caseData.pg_wait_reason}` : '',
     `Case Complexity: ${caseData.case_complexity || ''}`,
     `ICM Linked: ${caseData.icm_linked ? 'Yes' : 'No'}`,
-    `Next Action Owner: ${caseData.next_action_owner || ''}`,
     `Source of Resolution: ${caseData.source_of_resolution || ''}`,
     caseData.ta_reviewer_notes ? `Reviewer Notes: ${caseData.ta_reviewer_notes}` : '',
     caseData.next_action_sna ? `SNA: ${caseData.next_action_sna}` : '',
@@ -147,7 +146,6 @@ export async function chatCompletion(
   - Reviewed: ${c.case_reviewed ? 'Yes' : 'No'}
   - Idle > 8hrs: ${c.idle_over_8_hours ? 'Yes' : 'No'}${c.idleness_reason ? ` (Reason: ${c.idleness_reason})` : ''}
   - Case Complexity: ${c.case_complexity || 'N/A'}
-  - Next Action Owner: ${c.next_action_owner || 'N/A'}
   - Source of Resolution: ${c.source_of_resolution || 'N/A'}
   - FQR Accurate: ${c.fqr_accurate || 'N/A'}
   - FQR Help Resolve: ${c.fqr_help_resolve || 'N/A'}

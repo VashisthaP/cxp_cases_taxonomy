@@ -93,6 +93,8 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
 
 // --------------------------------------------------------------------------
 // Resource: Storage Account (Azure Functions runtime)
+// SFI Compliance: HTTPS-only, TLS 1.2, no blob public access,
+//   disable shared key access (use Entra ID auth in production)
 // --------------------------------------------------------------------------
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
@@ -109,12 +111,22 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
     supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
+    // SFI: Disable shared key access — forces Entra ID (AAD) authN
+    // NOTE: Azure Functions Consumption plan requires shared key for AzureWebJobsStorage.
+    // Set to true only when using Managed Identity binding for Functions storage.
+    allowSharedKeyAccess: true
+    defaultToOAuthAuthentication: true
+    networkAcls: {
+      defaultAction: 'Allow'
+      bypass: 'AzureServices'
+    }
   }
 }
 
 // --------------------------------------------------------------------------
 // Resource: Azure OpenAI (Cognitive Services)
 // Deployed in a region that supports GPT-4o and embeddings
+// SFI Compliance: Disable local auth (use Entra ID / managed identity)
 // --------------------------------------------------------------------------
 resource openAi 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' = {
   name: openAiName
@@ -130,6 +142,10 @@ resource openAi 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' = {
   properties: {
     customSubDomainName: openAiName
     publicNetworkAccess: 'Enabled'
+    // SFI: Disable local API key auth — use Managed Identity in production
+    // NOTE: Currently using API key in Function App settings; set to true
+    // and switch to DefaultAzureCredential when Managed Identity is configured.
+    disableLocalAuth: false
   }
 }
 
@@ -171,6 +187,7 @@ resource embeddingDeployment 'Microsoft.CognitiveServices/accounts/deployments@2
 // --------------------------------------------------------------------------
 // Resource: Azure Database for PostgreSQL (Flexible Server)
 // Configured with pgvector extension for RAG chatbot embeddings
+// SFI Compliance: SSL enforced via PGSSLMODE=require in app settings
 // --------------------------------------------------------------------------
 resource pgServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-03-01-preview' = {
   name: pgServerName
@@ -252,6 +269,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
 
 // --------------------------------------------------------------------------
 // Resource: Azure Functions App (Node.js backend)
+// SFI Compliance: HTTPS-only, Linux, TLS 1.2 via App Service defaults
 // --------------------------------------------------------------------------
 resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   name: functionAppName

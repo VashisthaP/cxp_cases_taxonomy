@@ -1,6 +1,7 @@
 // ==========================================================================
 // Home Page - War Room Case Taxonomy Portal
-// Main dashboard with navigation to case list, case entry, and chatbot
+// Main dashboard with navigation to case list, case entry, insights, and chatbot
+// Auth: Simulated SSO user header (production: replace with Entra ID SSO)
 // ==========================================================================
 "use client";
 
@@ -11,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { CaseForm } from '@/components/case-form';
 import { CaseList } from '@/components/case-list';
 import { ChatSidebar } from '@/components/chat-sidebar';
+import { InsightsPage } from '@/components/insights-page';
 import { getDashboardStats } from '@/lib/api';
 import type { DashboardStats } from '@/types/case';
 import {
@@ -22,9 +24,24 @@ import {
   CheckCircle2,
   Clock,
   FileText,
+  Lightbulb,
+  User,
 } from 'lucide-react';
 
-type ActiveView = 'dashboard' | 'new-case' | 'case-list';
+// --------------------------------------------------------------------------
+// Simulated Auth Context (Mock SSO)
+// TODO: RBAC - Replace with Entra ID SSO (EasyAuth) when app registration is configured.
+// In production, the user identity comes from /.auth/me endpoint provided by
+// Azure Static Web Apps built-in authentication. Role-based filtering should
+// use the user's role claim to restrict views and data access.
+// --------------------------------------------------------------------------
+const MOCK_USER = {
+  name: 'CXP Reviewer',
+  email: 'cxp-reviewer@microsoft.com',
+  role: 'reviewer', // TODO: RBAC - filter by user role when SSO is configured
+};
+
+type ActiveView = 'dashboard' | 'new-case' | 'case-list' | 'insights';
 
 export default function HomePage() {
   // --------------------------------------------------------------------------
@@ -110,6 +127,14 @@ export default function HomePage() {
               <FileText className="mr-2 h-4 w-4" />
               All Cases
             </Button>
+            <Button
+              variant={activeView === 'insights' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setActiveView('insights')}
+            >
+              <Lightbulb className="mr-2 h-4 w-4" />
+              Insights
+            </Button>
 
             {/* Chatbot Toggle */}
             <div className="ml-4 border-l pl-4">
@@ -121,6 +146,18 @@ export default function HomePage() {
                 <MessageSquare className="mr-2 h-4 w-4" />
                 AI Assistant
               </Button>
+            </div>
+
+            {/* User Profile (Mock SSO) */}
+            {/* TODO: RBAC - Replace with real Entra ID user info from /.auth/me */}
+            <div className="ml-2 flex items-center gap-2 pl-4 border-l">
+              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
+                <User className="h-4 w-4 text-primary" />
+              </div>
+              <div className="hidden md:block">
+                <p className="text-xs font-medium leading-none">{MOCK_USER.name}</p>
+                <p className="text-xs text-muted-foreground">{MOCK_USER.role}</p>
+              </div>
             </div>
           </nav>
         </div>
@@ -306,6 +343,11 @@ export default function HomePage() {
                 </div>
                 <CaseList />
               </div>
+            )}
+
+            {/* Insights View */}
+            {activeView === 'insights' && (
+              <InsightsPage />
             )}
           </div>
         </main>

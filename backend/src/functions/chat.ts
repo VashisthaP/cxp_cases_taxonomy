@@ -68,8 +68,8 @@ async function chatHandler(
           `SELECT id, case_id, case_reviewed, ta_name, ta_reviewer_notes,
                   case_type, issue_type, fqr_accurate, fqr_help_resolve,
                   idle_over_8_hours, idleness_reason, collab_wait_reason, pg_wait_reason,
-                  engineer_workload, unresponsive_cx, case_complexity, icm_linked,
-                  next_action_owner, next_action_sna, source_of_resolution,
+                  case_complexity, icm_linked,
+                  next_action_sna, source_of_resolution, reviewer_email,
                   created_at, updated_at,
                   1 - (embedding <=> $1::vector) as similarity
            FROM cases
@@ -101,8 +101,8 @@ async function chatHandler(
             `SELECT id, case_id, case_reviewed, ta_name, ta_reviewer_notes,
                     case_type, issue_type, fqr_accurate, fqr_help_resolve,
                     idle_over_8_hours, idleness_reason, collab_wait_reason, pg_wait_reason,
-                    engineer_workload, unresponsive_cx, case_complexity, icm_linked,
-                    next_action_owner, next_action_sna, source_of_resolution,
+                    case_complexity, icm_linked,
+                    next_action_sna, source_of_resolution, reviewer_email,
                     created_at, updated_at
              FROM cases
              WHERE to_tsvector('english',
@@ -132,8 +132,8 @@ async function chatHandler(
           `SELECT id, case_id, case_reviewed, ta_name, ta_reviewer_notes,
                   case_type, issue_type, fqr_accurate, fqr_help_resolve,
                   idle_over_8_hours, idleness_reason, collab_wait_reason, pg_wait_reason,
-                  engineer_workload, unresponsive_cx, case_complexity, icm_linked,
-                  next_action_owner, next_action_sna, source_of_resolution,
+                  case_complexity, icm_linked,
+                  next_action_sna, source_of_resolution, reviewer_email,
                   created_at, updated_at
            FROM cases
            ORDER BY created_at DESC

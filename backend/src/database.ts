@@ -150,26 +150,20 @@ export async function initializeDatabase(): Promise<void> {
         -- 9c. Why waiting for PG (conditional)
         pg_wait_reason VARCHAR(50) DEFAULT '',
 
-        -- 10. Engineer Workload
-        engineer_workload BOOLEAN DEFAULT FALSE,
-
-        -- 10. Unresponsive Cx
-        unresponsive_cx BOOLEAN DEFAULT FALSE,
-
-        -- 11. Case Complexity
+        -- 10. Case Complexity
         case_complexity VARCHAR(50) DEFAULT '',
 
-        -- 12. ICM Linked
+        -- 11. ICM Linked
         icm_linked BOOLEAN DEFAULT FALSE,
 
-        -- 13. Next Action Owner
-        next_action_owner VARCHAR(50) DEFAULT '',
-
-        -- 14. Next Action for Engineer (SNA)
+        -- 12. Next Action for Engineer (SNA)
         next_action_sna TEXT DEFAULT '',
 
-        -- 15. Source of Resolution
+        -- 13. Source of Resolution
         source_of_resolution VARCHAR(80) DEFAULT '',
+
+        -- Reviewer email (populated from SSO / mock auth context)
+        reviewer_email VARCHAR(200) DEFAULT '',
 
         -- Embedding vector for RAG chatbot (1536 dimensions for text-embedding-ada-002)
         embedding vector(1536),
@@ -178,6 +172,30 @@ export async function initializeDatabase(): Promise<void> {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+    `);
+
+    // --------------------------------------------------------------------------
+    // Schema migration for existing databases:
+    // Drop removed columns (engineer_workload, unresponsive_cx, next_action_owner)
+    // Add new column (reviewer_email)
+    // Uses IF EXISTS / IF NOT EXISTS to be idempotent
+    // --------------------------------------------------------------------------
+    await queryWithRetry(`
+      DO $$
+      BEGIN
+        -- Drop deprecated columns (safe: IF EXISTS prevents errors)
+        ALTER TABLE cases DROP COLUMN IF EXISTS engineer_workload;
+        ALTER TABLE cases DROP COLUMN IF EXISTS unresponsive_cx;
+        ALTER TABLE cases DROP COLUMN IF EXISTS next_action_owner;
+
+        -- Add reviewer_email column if it doesn't exist
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'cases' AND column_name = 'reviewer_email'
+        ) THEN
+          ALTER TABLE cases ADD COLUMN reviewer_email VARCHAR(200) DEFAULT '';
+        END IF;
+      END $$;
     `);
 
     // Create indexes for common queries
