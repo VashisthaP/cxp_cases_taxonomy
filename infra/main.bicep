@@ -1,5 +1,5 @@
 // ==========================================================================
-// War Room Case Taxonomy Portal - Azure Bicep Deployment Template
+// BC VM PCY - Case Taxonomy Insights - Azure Bicep Deployment Template
 // Resources:
 //   1. Azure Database for PostgreSQL (Flexible Server) with pgvector
 //   2. Azure Functions (Consumption) - Node.js backend

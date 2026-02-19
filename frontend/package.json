@@ -2,7 +2,7 @@
   "name": "warroom-case-taxonomy-portal",
   "version": "1.0.0",
   "private": true,
-  "description": "War Room Case Taxonomy & Agentic Portal - Internal auditing tool for CXP cases",
+  "description": "BC VM PCY - Case Taxonomy Insights - Internal case taxonomy insights portal",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

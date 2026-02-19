@@ -1,8 +1,8 @@
-# War Room Case Taxonomy & Agentic Portal – Functional & Technical Architecture Solution Document
+# BC VM PCY - Case Taxonomy Insights – Functional & Technical Architecture Solution Document
 
-**Document Version:** 1.0  
+**Document Version:** 1.1  
 **Date:** February 18, 2026  
-**Project:** War Room Case Taxonomy & Agentic Portal – CXP Case Auditing System  
+**Project:** BC VM PCY - Case Taxonomy Insights – CXP Case Auditing System  
 **Classification:** Internal  
 
 ---
@@ -28,11 +28,11 @@
 
 ### 1.1 Purpose
 
-The War Room Case Taxonomy & Agentic Portal is a mission-critical internal auditing tool designed for Microsoft CXP (Customer Experience & Platform) Support teams. It enables structured classification, tracking, and AI-powered analysis of war room cases through a comprehensive 15-field taxonomy with an embedded agentic chatbot.
+BC VM PCY - Case Taxonomy Insights is an internal case taxonomy insights and auditing portal designed for Microsoft CXP (Customer Experience & Platform) Support teams. It enables structured classification, tracking, and AI-powered analysis of cases through a comprehensive 15-field taxonomy with an embedded agentic chatbot.
 
 ### 1.2 Business Problem
 
-- CXP support teams lack a centralized, structured tool to audit and classify war room cases with consistent taxonomy.
+- CXP support teams lack a centralized, structured tool to audit and classify cases with consistent taxonomy.
 - Manual case reviews via spreadsheets lead to inconsistent data entry, missed fields, and no conditional validation.
 - No AI-powered analysis exists to identify trends, patterns, or actionable insights across case data.
 - Case idleness tracking (>8 hours) and root cause attribution require tedious manual aggregation.
@@ -40,7 +40,7 @@ The War Room Case Taxonomy & Agentic Portal is a mission-critical internal audit
 
 ### 1.3 Solution Overview
 
-The War Room Case Taxonomy & Agentic Portal provides:
+BC VM PCY - Case Taxonomy Insights provides:
 
 - A **15-Field Structured Taxonomy Form** with conditional validation (idle cases → idleness reason → collab/PG wait reason).
 - **Full CRUD Operations** for case management with duplicate detection and pagination.
@@ -59,7 +59,7 @@ The War Room Case Taxonomy & Agentic Portal provides:
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
-│                  War Room Case Taxonomy Portal                        │
+│              BC VM PCY - Case Taxonomy Insights                       │
 ├──────────────┬──────────────┬──────────────┬──────────────────────────┤
 │   Dashboard  │   Case       │   Agentic    │   Search &              │
 │   Module     │   Management │   Chatbot    │   Analytics             │
@@ -96,8 +96,8 @@ The War Room Case Taxonomy & Agentic Portal provides:
 ```
                     ┌──────────────┐
                     │  TA Reviews  │
-                    │  War Room    │
-                    │    Case      │
+                    │    a Case    │
+                    │              │
                     └──────┬───────┘
                            │
                     ┌──────▼───────┐
@@ -728,7 +728,7 @@ Source of Resolution: {source}. Reviewer Notes: {notes}. SNA: {sna}.
 | Max Tokens | 1,500 | Sufficient for detailed summaries |
 | Top P | 0.9 | Slightly constrained nucleus sampling |
 | Context Window | Last 6 messages | Prevent token overflow in multi-turn chats |
-| System Prompt | War Room case analyst persona | Structured instructions for case data analysis |
+| System Prompt | Case taxonomy analyst persona | Structured instructions for case data analysis |
 
 ### 7.4 Chatbot Capabilities
 
@@ -998,7 +998,7 @@ Developer Workstation
 
 ### 12.1 Overview
 
-The War Room Case Taxonomy Portal is architected to minimize Azure costs while maintaining high availability during business hours. The design leverages serverless and consumption-based pricing models wherever possible.
+BC VM PCY - Case Taxonomy Insights is architected to minimize Azure costs while maintaining high availability during business hours. The design leverages serverless and consumption-based pricing models wherever possible.
 
 ### 12.2 Cost-Effective Architecture Choices
 
@@ -1042,7 +1042,7 @@ The War Room Case Taxonomy Portal is architected to minimize Azure costs while m
 ```
 cxp_cases_taxonomy/
 ├── docs/
-│   └── WarRoom_Architecture_Solution_Document.md    # This document
+│   └── Architecture_Solution_Document.md             # This document
 ├── frontend/                                         # Next.js 14+ Application
 │   ├── src/
 │   │   ├── app/

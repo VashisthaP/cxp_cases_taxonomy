@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==========================================================================
-# War Room Case Taxonomy Portal - 1-Click Azure Deployment Script
+# BC VM PCY - Case Taxonomy Insights - 1-Click Azure Deployment Script
 # Provisions all Azure resources and deploys both frontend & backend
 #
 # Prerequisites:
@@ -45,7 +45,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # --------------------------------------------------------------------------
 echo ""
 echo "=============================================="
-echo " War Room Case Taxonomy Portal - Deployment"
+echo " BC VM PCY - Case Taxonomy Insights - Deployment"
 echo " Region: Azure Central India (Pune)"
 echo "=============================================="
 echo ""

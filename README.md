@@ -1,6 +1,6 @@
-# War Room Case Taxonomy & Agentic Portal
+# BC VM PCY - Case Taxonomy Insights
 
-> A mission-critical internal auditing tool for CXP Support teams to classify, track, and analyze war room cases through a structured 15-field taxonomy with an AI-powered chatbot.
+> An internal case taxonomy insights and auditing portal for CXP Support teams to classify, track, and analyze cases through a structured 15-field taxonomy with an AI-powered chatbot.
 
 ---
 
@@ -138,10 +138,10 @@ The script will:
 ### Environment Variables for CI/CD
 
 ```bash
-export WARROOM_RG_NAME="warroom-rg"
-export WARROOM_PG_PASSWORD="<strong-password>"
-export WARROOM_OPENAI_NAME="<openai-resource-name>"
-export WARROOM_OPENAI_KEY="<openai-api-key>"
+export CTI_RG_NAME="warroom-cxp-rg"
+export CTI_PG_PASSWORD="<strong-password>"
+export CTI_OPENAI_NAME="<openai-resource-name>"
+export CTI_OPENAI_KEY="<openai-api-key>"
 ./deploy.sh
 ```
 
@@ -326,4 +326,4 @@ The embedded chatbot uses a **Retrieval-Augmented Generation (RAG)** pipeline:
 
 ## License
 
-Internal use only — Microsoft CXP Support.
+Internal use only — Microsoft CXP BC VM PCY Team.
