@@ -54,21 +54,28 @@ interface CaseFormProps {
   isEditMode?: boolean;
   /** Callback on successful submission */
   onSuccess?: () => void;
+  /** Logged-in user's display name (SSO). Auto-populates TA Name for new cases. */
+  userName?: string;
 }
 
 // --------------------------------------------------------------------------
 // Component
 // --------------------------------------------------------------------------
 
-export function CaseForm({ initialData, isEditMode = false, onSuccess }: CaseFormProps) {
+export function CaseForm({ initialData, isEditMode = false, onSuccess, userName }: CaseFormProps) {
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
 
+  // For new cases, auto-populate ta_name from the SSO user's display name
+  const resolvedDefaults = initialData || {
+    ...defaultCaseValues,
+    ta_name: userName || defaultCaseValues.ta_name,
+  };
+
   // Initialize react-hook-form with Zod resolver
-  // FIX: Use initialData as defaultValues to properly populate edit forms
   const form = useForm<CaseFormValues>({
     resolver: zodResolver(caseFormSchema),
-    defaultValues: initialData || defaultCaseValues,
+    defaultValues: resolvedDefaults,
     mode: 'onBlur',
   });
 
@@ -172,7 +179,7 @@ export function CaseForm({ initialData, isEditMode = false, onSuccess }: CaseFor
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">
-            {isEditMode ? `Edit Case: ${initialData?.case_id}` : 'New Case Entry'}
+            {isEditMode ? `Edit Case: ${initialData?.case_id}` : 'Case Metadata'}
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-4">
@@ -193,14 +200,19 @@ export function CaseForm({ initialData, isEditMode = false, onSuccess }: CaseFor
             )}
           </div>
 
-          {/* TA Name */}
+          {/* TA Name (auto-populated from SSO) */}
           <div className="space-y-2">
             <Label htmlFor="ta_name">TA Name</Label>
             <Input
               id="ta_name"
-              placeholder="Enter TA Name"
+              placeholder="Auto-filled from SSO"
               {...register('ta_name')}
+              readOnly={!isEditMode && !!userName}
+              className={!isEditMode && !!userName ? 'bg-muted cursor-default' : ''}
             />
+            {!isEditMode && !!userName && (
+              <p className="text-xs text-muted-foreground">Auto-populated from your login</p>
+            )}
           </div>
 
           {/* Case Type */}

@@ -14,6 +14,7 @@ import { CaseList } from '@/components/case-list';
 import { ChatSidebar } from '@/components/chat-sidebar';
 import { InsightsPage } from '@/components/insights-page';
 import { getDashboardStats } from '@/lib/api';
+import { useAuth } from '@/hooks/use-auth';
 import type { DashboardStats } from '@/types/case';
 import {
   ClipboardList,
@@ -26,24 +27,18 @@ import {
   FileText,
   Lightbulb,
   User,
+  LogOut,
+  Loader2,
 } from 'lucide-react';
-
-// --------------------------------------------------------------------------
-// Simulated Auth Context (Mock SSO)
-// TODO: RBAC - Replace with Entra ID SSO (EasyAuth) when app registration is configured.
-// In production, the user identity comes from /.auth/me endpoint provided by
-// Azure Static Web Apps built-in authentication. Role-based filtering should
-// use the user's role claim to restrict views and data access.
-// --------------------------------------------------------------------------
-const MOCK_USER = {
-  name: 'CXP Reviewer',
-  email: 'cxp-reviewer@microsoft.com',
-  role: 'reviewer', // TODO: RBAC - filter by user role when SSO is configured
-};
 
 type ActiveView = 'dashboard' | 'new-case' | 'case-list' | 'insights';
 
 export default function HomePage() {
+  // --------------------------------------------------------------------------
+  // Auth (Entra ID SSO via Azure Static Web Apps)
+  // --------------------------------------------------------------------------
+  const { user, loading: authLoading, logout } = useAuth();
+
   // --------------------------------------------------------------------------
   // State
   // --------------------------------------------------------------------------
@@ -81,6 +76,20 @@ export default function HomePage() {
     }
     loadStats();
   }, [activeView]); // Refresh stats when switching back to dashboard
+
+  // --------------------------------------------------------------------------
+  // Auth loading screen
+  // --------------------------------------------------------------------------
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-3">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground">Authenticating...</p>
+        </div>
+      </div>
+    );
+  }
 
   // --------------------------------------------------------------------------
   // Render
@@ -148,17 +157,27 @@ export default function HomePage() {
               </Button>
             </div>
 
-            {/* User Profile (Mock SSO) */}
-            {/* TODO: RBAC - Replace with real Entra ID user info from /.auth/me */}
-            <div className="ml-2 flex items-center gap-2 pl-4 border-l">
-              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
-                <User className="h-4 w-4 text-primary" />
+            {/* User Profile (Entra ID SSO) */}
+            {user && (
+              <div className="ml-2 flex items-center gap-2 pl-4 border-l">
+                <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
+                <div className="hidden md:block">
+                  <p className="text-xs font-medium leading-none">{user.name}</p>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={logout}
+                  className="h-7 w-7 p-0 ml-1"
+                  title="Sign out"
+                >
+                  <LogOut className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
               </div>
-              <div className="hidden md:block">
-                <p className="text-xs font-medium leading-none">{MOCK_USER.name}</p>
-                <p className="text-xs text-muted-foreground">{MOCK_USER.role}</p>
-              </div>
-            </div>
+            )}
           </nav>
         </div>
       </header>
@@ -312,12 +331,13 @@ export default function HomePage() {
             {activeView === 'new-case' && (
               <div className="space-y-6">
                 <div>
-                  <h2 className="text-2xl font-bold tracking-tight">New Case Entry</h2>
+                  <h2 className="text-2xl font-bold tracking-tight">Case Information</h2>
                   <p className="text-muted-foreground">
-                    Fill in all taxonomy fields for a new war room case.
+                    Fill in all taxonomy fields for a war room case.
                   </p>
                 </div>
                 <CaseForm
+                  userName={user?.name || ''}
                   onSuccess={() => {
                     // Navigate to case list after successful creation
                     setActiveView('case-list');
