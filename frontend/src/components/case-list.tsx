@@ -212,7 +212,7 @@ export function CaseList() {
           <div className="relative w-full max-w-4xl bg-background shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-300">
             <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b bg-background">
               <h2 className="text-lg font-semibold">
-                Edit Case: {editingCase.case_id}
+                Audit Case: {editingCase.case_id}
               </h2>
               <Button
                 variant="ghost"
@@ -407,12 +407,13 @@ export function CaseList() {
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            title="Edit case"
+                            size="sm"
+                            className="h-8 px-2 text-xs"
+                            title="Audit case"
                             onClick={() => setEditingCase(c)}
                           >
-                            <Edit className="h-3.5 w-3.5" />
+                            <Edit className="h-3.5 w-3.5 mr-1" />
+                            Audit Now
                           </Button>
                           <Button
                             variant="ghost"

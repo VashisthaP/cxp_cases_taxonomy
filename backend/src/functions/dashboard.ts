@@ -173,8 +173,8 @@ async function getDashboardInsights(
           COUNT(*) FILTER (WHERE idle_over_8_hours = true) as idle_count,
           COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'Awaiting response from Cx') as awaiting_cx,
           COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'Engineer Workload') as engineer_workload,
-          COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'Collaboration Team') as collab_wait,
-          COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'PG') as pg_wait,
+          COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'Awaiting Collab Response') as collab_wait,
+          COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'PG - Awaiting ICM Response') as pg_wait,
           COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'Unsure') as unsure
         FROM cases
         WHERE issue_type != ''

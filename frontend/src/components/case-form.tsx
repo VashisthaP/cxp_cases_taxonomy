@@ -179,7 +179,7 @@ export function CaseForm({ initialData, isEditMode = false, onSuccess, userName 
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">
-            {isEditMode ? `Edit Case: ${initialData?.case_id}` : 'Case Metadata'}
+            {isEditMode ? `Audit Case: ${initialData?.case_id}` : 'Case Metadata'}
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-4">
@@ -218,17 +218,8 @@ export function CaseForm({ initialData, isEditMode = false, onSuccess, userName 
           {/* Case Type */}
           {renderSelect('case_type', 'Case Type', CASE_TYPE_OPTIONS)}
 
-          {/* Case Reviewed */}
-          <div className="flex items-center space-x-3 pt-7">
-            <Switch
-              id="case_reviewed"
-              checked={watch('case_reviewed')}
-              onCheckedChange={(checked) =>
-                setValue('case_reviewed', checked, { shouldValidate: true })
-              }
-            />
-            <Label htmlFor="case_reviewed">Case Reviewed</Label>
-          </div>
+          {/* Case Complexity (moved from ASC FQR section) */}
+          {renderSelect('case_complexity', 'Case Complexity', CASE_COMPLEXITY_OPTIONS)}
         </CardContent>
       </Card>
 
@@ -247,7 +238,6 @@ export function CaseForm({ initialData, isEditMode = false, onSuccess, userName 
             {renderSelect('issue_type', 'Issue Type', ISSUE_TYPE_OPTIONS)}
             {renderSelect('fqr_accurate', 'Was the ASC FQR Accurate?', FQR_ACCURACY_OPTIONS)}
             {renderSelect('fqr_help_resolve', 'Did FQR help resolve?', FQR_HELP_RESOLVE_OPTIONS)}
-            {renderSelect('case_complexity', 'Case Complexity', CASE_COMPLEXITY_OPTIONS)}
           </CardContent>
         </Card>
 
@@ -286,7 +276,7 @@ export function CaseForm({ initialData, isEditMode = false, onSuccess, userName 
                   'Select reason...'
                 )}
 
-                {idlenessReason === 'Collaboration Team' && (
+                {idlenessReason === 'Awaiting Collab Response' && (
                   <div className="form-transition-enter border-l-2 border-yellow-300/50 pl-3">
                     {renderSelect(
                       'collab_wait_reason',
@@ -297,7 +287,7 @@ export function CaseForm({ initialData, isEditMode = false, onSuccess, userName 
                   </div>
                 )}
 
-                {idlenessReason === 'PG' && (
+                {idlenessReason === 'PG - Awaiting ICM Response' && (
                   <div className="form-transition-enter border-l-2 border-orange-300/50 pl-3">
                     {renderSelect(
                       'pg_wait_reason',

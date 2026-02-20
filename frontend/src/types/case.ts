@@ -38,21 +38,21 @@ export type FqrHelpResolve =
 /** Reason for Case Idleness (shown when idle > 8 hours = Yes) */
 export type IdlenessReason =
   | 'Awaiting response from Cx'
-  | 'Collaboration Team'
-  | 'PG'
+  | 'Awaiting Collab Response'
+  | 'PG - Awaiting ICM Response'
   | 'AVA'
   | 'Unsure'
   | 'Engineer Workload'
   | 'NA';
 
-/** Why waiting for Collab (shown when idleness reason = Collaboration Team) */
+/** Why waiting for Collab (shown when idleness reason = Awaiting Collab Response) */
 export type CollabWaitReason =
   | 'Incorrect Team'
   | 'Not Triaged'
   | 'Unsure'
   | 'In Progress';
 
-/** Why waiting for PG (shown when idleness reason = PG) */
+/** Why waiting for PG (shown when idleness reason = PG - Awaiting ICM Response) */
 export type PgWaitReason =
   | 'Incorrect PG'
   | 'Not Triaged'
@@ -117,10 +117,10 @@ export interface CaseData {
   /** 9a. Reason for Case idleness (conditional - shown when idle_over_8_hours = true) */
   idleness_reason: IdlenessReason | '';
 
-  /** 9b. Why waiting for Collab (conditional - shown when idleness_reason = "Collaboration Team") */
+  /** 9b. Why waiting for Collab (conditional - shown when idleness_reason = "Awaiting Collab Response") */
   collab_wait_reason: CollabWaitReason | '';
 
-  /** 9c. Why waiting for PG (conditional - shown when idleness_reason = "PG") */
+  /** 9c. Why waiting for PG (conditional - shown when idleness_reason = "PG - Awaiting ICM Response") */
   pg_wait_reason: PgWaitReason | '';
 
   /** 10. Case Complexity - Dropdown selection */
@@ -265,8 +265,8 @@ export const FQR_HELP_RESOLVE_OPTIONS: FqrHelpResolve[] = [
 
 export const IDLENESS_REASON_OPTIONS: IdlenessReason[] = [
   'Awaiting response from Cx',
-  'Collaboration Team',
-  'PG',
+  'Awaiting Collab Response',
+  'PG - Awaiting ICM Response',
   'AVA',
   'Unsure',
   'Engineer Workload',

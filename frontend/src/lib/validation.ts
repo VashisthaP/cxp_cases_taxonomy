@@ -55,7 +55,7 @@ export const caseFormSchema = z.object({
 
   // 9a. Reason for Case idleness (conditional)
   idleness_reason: z.enum([
-    'Awaiting response from Cx', 'Collaboration Team', 'PG', 'AVA',
+    'Awaiting response from Cx', 'Awaiting Collab Response', 'PG - Awaiting ICM Response', 'AVA',
     'Unsure', 'Engineer Workload', 'NA', ''
   ]).default(''),
 
@@ -100,8 +100,8 @@ export const caseFormSchema = z.object({
     });
   }
 
-  // If idleness reason is "Collaboration Team", collab wait reason is required
-  if (data.idleness_reason === 'Collaboration Team' && !data.collab_wait_reason) {
+  // If idleness reason is "Awaiting Collab Response", collab wait reason is required
+  if (data.idleness_reason === 'Awaiting Collab Response' && !data.collab_wait_reason) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Please select why waiting for Collab',
@@ -109,8 +109,8 @@ export const caseFormSchema = z.object({
     });
   }
 
-  // If idleness reason is "PG", PG wait reason is required
-  if (data.idleness_reason === 'PG' && !data.pg_wait_reason) {
+  // If idleness reason is "PG - Awaiting ICM Response", PG wait reason is required
+  if (data.idleness_reason === 'PG - Awaiting ICM Response' && !data.pg_wait_reason) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Please select why waiting for PG',
@@ -125,11 +125,11 @@ export const caseFormSchema = z.object({
     data.pg_wait_reason = '';
   }
 
-  if (data.idleness_reason !== 'Collaboration Team') {
+  if (data.idleness_reason !== 'Awaiting Collab Response') {
     data.collab_wait_reason = '';
   }
 
-  if (data.idleness_reason !== 'PG') {
+  if (data.idleness_reason !== 'PG - Awaiting ICM Response') {
     data.pg_wait_reason = '';
   }
 });
