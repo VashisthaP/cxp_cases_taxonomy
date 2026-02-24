@@ -24,7 +24,11 @@ const PGUSER = process.env.PGUSER || '';
 const PGPASSWORD = process.env.PGPASSWORD || '';
 const PGDATABASE = process.env.PGDATABASE || '';
 const PGSSLMODE = process.env.PGSSLMODE || '';
-const USE_MANAGED_IDENTITY = process.env.AZURE_USE_MANAGED_IDENTITY === 'true';
+
+// Separate flag for PostgreSQL AAD auth — only enable when the PG server has
+// AAD admin configured.  The generic AZURE_USE_MANAGED_IDENTITY flag controls
+// OpenAI; this one controls PostgreSQL (defaults to false — password auth).
+const USE_MANAGED_IDENTITY_PG = process.env.AZURE_USE_MANAGED_IDENTITY_PG === 'true';
 
 // Azure Database for PostgreSQL uses DigiCert Global Root G2 CA
 // which is in Node.js default CA bundle — rejectUnauthorized: true is correct
@@ -45,7 +49,7 @@ const DB_CONFIG: pg.PoolConfig = {
 // --------------------------------------------------------------------------
 // Managed Identity Token Refresh for PostgreSQL AAD Auth
 // --------------------------------------------------------------------------
-const credential = USE_MANAGED_IDENTITY ? new DefaultAzureCredential() : null;
+const credential = USE_MANAGED_IDENTITY_PG ? new DefaultAzureCredential() : null;
 
 /**
  * Refresh the password with a managed identity token for Azure PostgreSQL.
@@ -133,7 +137,7 @@ export async function queryWithRetry(
         error.code === '28P01';   // invalid_password (token may have expired)
 
       // If auth error with managed identity, refresh the token
-      if (error.code === '28P01' && USE_MANAGED_IDENTITY) {
+      if (error.code === '28P01' && USE_MANAGED_IDENTITY_PG) {
         console.warn('[DB] Auth failed, refreshing managed identity token...');
         try {
           await refreshManagedIdentityToken();
@@ -315,7 +319,7 @@ export async function ensureDbInitialized(): Promise<void> {
   }
 
   // If using managed identity, refresh token before first connection
-  if (USE_MANAGED_IDENTITY && !pool) {
+  if (USE_MANAGED_IDENTITY_PG && !pool) {
     await refreshManagedIdentityToken();
   }
 
