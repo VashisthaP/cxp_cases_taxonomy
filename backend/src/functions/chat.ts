@@ -4,18 +4,20 @@
 // Implements RAG (Retrieval Augmented Generation) using:
 //   1. pgvector similarity search to find relevant cases
 //   2. Azure OpenAI GPT-4o for natural language response generation
+//
+// SFI/QEI: JWT auth required, CORS locked, errors sanitized
 // ==========================================================================
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { ensureDbInitialized, queryWithRetry } from '../database';
 import { generateEmbedding, chatCompletion } from '../openai';
 import { v4 as uuidv4 } from 'uuid';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+import {
+  authenticateRequest,
+  unauthorizedResponse,
+  safeErrorResponse,
+  getCorsHeaders,
+} from '../auth-middleware';
 
 // Number of similar cases to retrieve for RAG context
 const TOP_K_CASES = 10;
@@ -23,13 +25,24 @@ const TOP_K_CASES = 10;
 // Minimum similarity threshold (cosine distance; lower = more similar)
 const SIMILARITY_THRESHOLD = 0.8;
 
+// Maximum chat message length to prevent abuse
+const MAX_MESSAGE_LENGTH = 2000;
+
 async function chatHandler(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
   context.log('[Chat] POST /api/chat - Chatbot message received');
+  const origin = request.headers.get('origin');
+  const CORS_HEADERS = getCorsHeaders(origin);
 
   try {
+    // SFI: Authenticate the request
+    const user = await authenticateRequest(request);
+    if (!user) {
+      return unauthorizedResponse(origin);
+    }
+
     await ensureDbInitialized();
 
     const body = await request.json() as Record<string, any>;
@@ -43,7 +56,16 @@ async function chatHandler(
       };
     }
 
-    context.log(`[Chat] User query: "${userMessage.substring(0, 100)}..."`);
+    // Validate message length to prevent abuse
+    if (userMessage.length > MAX_MESSAGE_LENGTH) {
+      return {
+        status: 400,
+        headers: CORS_HEADERS,
+        jsonBody: { success: false, error: `Message must be under ${MAX_MESSAGE_LENGTH} characters.` },
+      };
+    }
+
+    context.log(`[Chat] User query (${userMessage.length} chars)`);
 
     // ======================================================================
     // Step 1: Generate embedding for the user's query
@@ -52,7 +74,7 @@ async function chatHandler(
     try {
       queryEmbedding = await generateEmbedding(userMessage);
     } catch (embErr: any) {
-      context.warn('[Chat] Query embedding generation failed:', embErr.message);
+      context.warn('[Chat] Query embedding generation failed');
     }
 
     // ======================================================================
@@ -81,22 +103,15 @@ async function chatHandler(
         relevantCases = vectorResult.rows;
         context.log(`[Chat] Vector search returned ${relevantCases.length} cases`);
       } catch (vecErr: any) {
-        context.warn('[Chat] Vector search failed, falling back to text search:', vecErr.message);
+        context.warn('[Chat] Vector search failed, falling back to text search');
       }
     }
 
     // Fallback: Text-based search if vector search returned no results
     if (relevantCases.length === 0) {
       try {
-        // Extract potential keywords from the query for text search
-        const keywords = userMessage
-          .replace(/[^\w\s]/g, ' ')
-          .split(/\s+/)
-          .filter((w: string) => w.length > 2)
-          .slice(0, 5);
-
-        if (keywords.length > 0) {
-          const searchPattern = keywords.join(' | ');
+        // Use plainto_tsquery for safe text search (no SQL injection via tsquery operators)
+        if (userMessage.length > 2) {
           const textResult = await queryWithRetry(
             `SELECT id, case_id, case_reviewed, ta_name, ta_reviewer_notes,
                     case_type, issue_type, fqr_accurate, fqr_help_resolve,
@@ -112,16 +127,16 @@ async function chatHandler(
                coalesce(case_type, '') || ' ' ||
                coalesce(issue_type, '') || ' ' ||
                coalesce(next_action_sna, '')
-             ) @@ to_tsquery('english', $1)
+             ) @@ plainto_tsquery('english', $1)
              ORDER BY created_at DESC
              LIMIT $2`,
-            [searchPattern, TOP_K_CASES]
+            [userMessage, TOP_K_CASES]
           );
           relevantCases = textResult.rows;
           context.log(`[Chat] Text search returned ${relevantCases.length} cases`);
         }
       } catch (textErr: any) {
-        context.warn('[Chat] Text search also failed:', textErr.message);
+        context.warn('[Chat] Text search also failed');
       }
     }
 
@@ -143,7 +158,7 @@ async function chatHandler(
         relevantCases = recentResult.rows;
         context.log(`[Chat] Using ${relevantCases.length} most recent cases as context`);
       } catch (recentErr: any) {
-        context.warn('[Chat] Recent cases query failed:', recentErr.message);
+        context.warn('[Chat] Recent cases query failed');
       }
     }
 
@@ -175,16 +190,17 @@ async function chatHandler(
     };
   } catch (error: any) {
     context.error('[Chat] Chat handler error:', error.message);
+    const origin = request.headers.get('origin');
     return {
       status: 500,
-      headers: CORS_HEADERS,
+      headers: getCorsHeaders(origin),
       jsonBody: {
         success: false,
-        error: `Chat processing failed: ${error.message}`,
+        error: 'Chat processing failed. Please try again.',
         data: {
           id: `error-${uuidv4()}`,
           role: 'assistant',
-          content: `I'm sorry, I encountered an error: ${error.message}. Please try again.`,
+          content: 'I\'m sorry, I encountered an error processing your request. Please try again.',
           timestamp: new Date().toISOString(),
         },
       },
@@ -205,5 +221,5 @@ app.http('chatCors', {
   methods: ['OPTIONS'],
   authLevel: 'anonymous',
   route: 'chat',
-  handler: async () => ({ status: 204, headers: CORS_HEADERS }),
+  handler: async (request) => ({ status: 204, headers: getCorsHeaders(request.headers.get('origin')) }),
 });

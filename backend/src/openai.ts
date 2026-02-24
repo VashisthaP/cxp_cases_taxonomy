@@ -2,7 +2,14 @@
 // Azure OpenAI Service
 // Handles embeddings generation and GPT-4o chat completions for RAG chatbot
 // Includes rate limiting retry logic and error handling
+//
+// SFI/QEI Compliance:
+//   - Supports managed identity via @azure/identity (DefaultAzureCredential)
+//   - Falls back to API key only when managed identity is not enabled
+//   - Error messages sanitized — no internal details leaked to callers
 // ==========================================================================
+
+import { DefaultAzureCredential, AccessToken } from '@azure/identity';
 
 // --------------------------------------------------------------------------
 // Configuration
@@ -12,6 +19,50 @@ const OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY || '';
 const CHAT_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-4o';
 const EMBEDDING_DEPLOYMENT = process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT || 'text-embedding-ada-002';
 const API_VERSION = '2024-02-01';
+const USE_MANAGED_IDENTITY = process.env.AZURE_USE_MANAGED_IDENTITY === 'true';
+
+// --------------------------------------------------------------------------
+// Managed Identity Token Cache
+// --------------------------------------------------------------------------
+const credential = USE_MANAGED_IDENTITY ? new DefaultAzureCredential() : null;
+let cachedToken: AccessToken | null = null;
+
+/**
+ * Get a Bearer token for Azure OpenAI via managed identity.
+ * Caches tokens and refreshes ~5 min before expiry.
+ */
+async function getOpenAIBearerToken(): Promise<string> {
+  if (!credential) {
+    throw new Error('Managed identity not configured');
+  }
+
+  const now = Date.now();
+  // Refresh if token expired or expires within 5 minutes
+  if (!cachedToken || cachedToken.expiresOnTimestamp - now < 5 * 60 * 1000) {
+    cachedToken = await credential.getToken('https://cognitiveservices.azure.com/.default');
+  }
+
+  return cachedToken.token;
+}
+
+/**
+ * Build authentication headers based on auth mode (managed identity or API key).
+ */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (USE_MANAGED_IDENTITY && credential) {
+    const token = await getOpenAIBearerToken();
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+  }
+
+  // Fallback to API key (for local development only)
+  return {
+    'Content-Type': 'application/json',
+    'api-key': OPENAI_API_KEY,
+  };
+}
 
 // --------------------------------------------------------------------------
 // Rate limiting configuration
@@ -28,8 +79,8 @@ const INITIAL_RETRY_DELAY = 2000; // Start with 2s delay for rate limit retries
  * @returns 1536-dimensional float array
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  if (!OPENAI_ENDPOINT || !OPENAI_API_KEY) {
-    console.warn('[OpenAI] Endpoint or API key not configured. Returning empty embedding.');
+  if (!OPENAI_ENDPOINT || (!OPENAI_API_KEY && !USE_MANAGED_IDENTITY)) {
+    console.warn('[OpenAI] Endpoint or auth not configured. Returning empty embedding.');
     return [];
   }
 
@@ -37,14 +88,12 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'api-key': OPENAI_API_KEY,
-        },
+        headers,
         body: JSON.stringify({
-          input: text.substring(0, 8000), // Truncate to embedding model's token limit
+          input: text.substring(0, 8000),
         }),
       });
 
@@ -62,7 +111,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
       if (!response.ok) {
         const errorBody = await response.text();
-        throw new Error(`Azure OpenAI embedding error (${response.status}): ${errorBody}`);
+        // SFI: Log details server-side only, don't expose to callers
+        console.error(`[OpenAI] Embedding error (${response.status}):`, errorBody);
+        throw new Error(`Azure OpenAI embedding request failed (${response.status})`);
       }
 
       const data = await response.json();
@@ -129,8 +180,8 @@ export async function chatCompletion(
   contextCases: Record<string, any>[],
   conversationHistory: Array<{ role: string; content: string }> = []
 ): Promise<string> {
-  if (!OPENAI_ENDPOINT || !OPENAI_API_KEY) {
-    return 'AI Assistant is not configured. Please set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY environment variables.';
+  if (!OPENAI_ENDPOINT || (!OPENAI_API_KEY && !USE_MANAGED_IDENTITY)) {
+    return 'AI Assistant is not configured. Please contact your administrator.';
   }
 
   const url = `${OPENAI_ENDPOINT}/openai/deployments/${CHAT_DEPLOYMENT}/chat/completions?api-version=${API_VERSION}`;
@@ -179,12 +230,10 @@ Guidelines:
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'api-key': OPENAI_API_KEY,
-        },
+        headers,
         body: JSON.stringify({
           messages,
           temperature: 0.3, // Low temperature for factual, consistent responses
@@ -206,7 +255,9 @@ Guidelines:
 
       if (!response.ok) {
         const errorBody = await response.text();
-        throw new Error(`Azure OpenAI chat error (${response.status}): ${errorBody}`);
+        // SFI: Log details server-side only
+        console.error(`[OpenAI] Chat error (${response.status}):`, errorBody);
+        throw new Error(`Azure OpenAI chat request failed (${response.status})`);
       }
 
       const data = await response.json();
@@ -214,7 +265,8 @@ Guidelines:
     } catch (error: any) {
       if (attempt === MAX_RETRIES) {
         console.error('[OpenAI] Chat completion failed after retries:', error.message);
-        return `I'm sorry, I encountered an error while processing your request. Error: ${error.message}. Please try again.`;
+        // SFI: Do not leak error details to end users
+        return 'I\'m sorry, I encountered an error while processing your request. Please try again.';
       }
 
       const delay = INITIAL_RETRY_DELAY * Math.pow(2, attempt - 1);

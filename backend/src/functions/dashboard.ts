@@ -2,24 +2,34 @@
 // Azure Function: Dashboard Statistics
 // GET /api/dashboard/stats
 // Returns aggregated case taxonomy statistics for the dashboard
+//
+// SFI/QEI: JWT auth required, CORS locked, errors sanitized
 // ==========================================================================
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { ensureDbInitialized, queryWithRetry } from '../database';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+import {
+  authenticateRequest,
+  unauthorizedResponse,
+  safeErrorResponse,
+  getCorsHeaders,
+} from '../auth-middleware';
 
 async function getDashboardStats(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
   context.log('[Dashboard] GET /api/dashboard/stats - Fetch dashboard statistics');
+  const origin = request.headers.get('origin');
+  const CORS_HEADERS = getCorsHeaders(origin);
 
   try {
+    // SFI: Authenticate the request
+    const user = await authenticateRequest(request);
+    if (!user) {
+      return unauthorizedResponse(origin);
+    }
+
     await ensureDbInitialized();
 
     // Execute multiple aggregation queries in parallel for performance
@@ -108,11 +118,7 @@ async function getDashboardStats(
     };
   } catch (error: any) {
     context.error('[Dashboard] Stats error:', error.message);
-    return {
-      status: 500,
-      headers: CORS_HEADERS,
-      jsonBody: { success: false, error: `Failed to load dashboard stats: ${error.message}` },
-    };
+    return safeErrorResponse(500, 'Failed to load dashboard statistics. Please try again.', request.headers.get('origin'));
   }
 }
 
@@ -129,7 +135,7 @@ app.http('dashboardStatsCors', {
   methods: ['OPTIONS'],
   authLevel: 'anonymous',
   route: 'dashboard/stats',
-  handler: async () => ({ status: 204, headers: CORS_HEADERS }),
+  handler: async (request) => ({ status: 204, headers: getCorsHeaders(request.headers.get('origin')) }),
 });
 
 // --------------------------------------------------------------------------
@@ -144,8 +150,16 @@ async function getDashboardInsights(
   context: InvocationContext
 ): Promise<HttpResponseInit> {
   context.log('[Dashboard] GET /api/dashboard/insights - Fetch insights data');
+  const origin = request.headers.get('origin');
+  const CORS_HEADERS = getCorsHeaders(origin);
 
   try {
+    // SFI: Authenticate the request
+    const user = await authenticateRequest(request);
+    if (!user) {
+      return unauthorizedResponse(origin);
+    }
+
     await ensureDbInitialized();
 
     const [
@@ -192,8 +206,8 @@ async function getDashboardInsights(
           COUNT(*) FILTER (WHERE idle_over_8_hours = true) as idle_count,
           COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason IN ('Awaiting response from Cx', 'AVA')) as awaiting_cx,
           COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'Engineer Workload') as engineer_workload,
-          COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'Collaboration Team') as collab_wait,
-          COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'PG') as pg_wait,
+          COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'Awaiting Collab Response') as collab_wait,
+          COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'PG - Awaiting ICM Response') as pg_wait,
           COUNT(*) FILTER (WHERE idle_over_8_hours = true AND idleness_reason = 'Unsure') as unsure
         FROM cases
         GROUP BY case_complexity
@@ -308,11 +322,7 @@ async function getDashboardInsights(
     };
   } catch (error: any) {
     context.error('[Dashboard] Insights error:', error.message);
-    return {
-      status: 500,
-      headers: CORS_HEADERS,
-      jsonBody: { success: false, error: `Failed to load insights: ${error.message}` },
-    };
+    return safeErrorResponse(500, 'Failed to load insights. Please try again.', request.headers.get('origin'));
   }
 }
 
@@ -327,5 +337,5 @@ app.http('dashboardInsightsCors', {
   methods: ['OPTIONS'],
   authLevel: 'anonymous',
   route: 'dashboard/insights',
-  handler: async () => ({ status: 204, headers: CORS_HEADERS }),
+  handler: async (request) => ({ status: 204, headers: getCorsHeaders(request.headers.get('origin')) }),
 });

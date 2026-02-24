@@ -2,16 +2,19 @@
 // Azure Function: Health Check
 // GET /api/health
 // Returns API health status and timestamp
+// NOTE: Health endpoint remains unauthenticated for monitoring probes
 // ==========================================================================
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { getPool } from '../database';
+import { getCorsHeaders } from '../auth-middleware';
 
 async function healthCheck(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
   context.log('[Health] Health check requested');
+  const CORS_HEADERS = getCorsHeaders(request.headers.get('origin'));
 
   try {
     // Test database connectivity
@@ -20,6 +23,7 @@ async function healthCheck(
 
     return {
       status: 200,
+      headers: CORS_HEADERS,
       jsonBody: {
         success: true,
         data: {
@@ -35,13 +39,14 @@ async function healthCheck(
 
     return {
       status: 503,
+      headers: CORS_HEADERS,
       jsonBody: {
         success: false,
         data: {
           status: 'degraded',
           timestamp: new Date().toISOString(),
           database: 'disconnected',
-          error: error.message,
+          // SFI: Do not leak error details in health response
         },
       },
     };

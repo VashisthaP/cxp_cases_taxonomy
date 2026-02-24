@@ -81,8 +81,6 @@ log_info "Current Azure subscription: $CURRENT_SUB"
 # --------------------------------------------------------------------------
 RG_NAME="${WARROOM_RG_NAME:-}"
 PG_PASSWORD="${WARROOM_PG_PASSWORD:-}"
-OPENAI_NAME="${WARROOM_OPENAI_NAME:-}"
-OPENAI_KEY="${WARROOM_OPENAI_KEY:-}"
 
 if [ -z "$RG_NAME" ]; then
     read -p "Enter Resource Group name [warroom-rg]: " RG_NAME
@@ -98,14 +96,6 @@ if [ -z "$PG_PASSWORD" ]; then
     fi
 fi
 
-if [ -z "$OPENAI_NAME" ]; then
-    read -p "Enter Azure OpenAI resource name (leave blank to skip AI features): " OPENAI_NAME
-fi
-
-if [ -n "$OPENAI_NAME" ] && [ -z "$OPENAI_KEY" ]; then
-    read -s -p "Enter Azure OpenAI API key: " OPENAI_KEY
-    echo ""
-fi
 
 # --------------------------------------------------------------------------
 # Step 2: Create Resource Group
@@ -132,8 +122,6 @@ DEPLOY_OUTPUT=$(az deployment group create \
         projectName="$PROJECT_NAME" \
         location="$LOCATION" \
         pgAdminPassword="$PG_PASSWORD" \
-        openAiResourceName="${OPENAI_NAME:-}" \
-        openAiApiKey="${OPENAI_KEY:-}" \
     --query "properties.outputs" \
     --output json)
 

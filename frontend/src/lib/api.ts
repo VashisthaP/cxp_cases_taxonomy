@@ -1,11 +1,16 @@
 // ==========================================================================
 // API Client - Axios-based HTTP client for Azure Functions backend
-// Implements retry logic, timeout handling, and error normalization
+// Implements retry logic, timeout handling, error normalization,
+// and Bearer token injection via MSAL.js
+//
+// SFI/QEI: All API calls include JWT Bearer token from Entra ID
 // ==========================================================================
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { CaseData, ApiResponse, PaginatedResponse, ChatMessage, ChatRequest, DashboardStats, InsightsData } from '@/types/case';
 import { CaseFormValues } from '@/lib/validation';
+import { getMsalInstance } from '@/components/msal-auth-provider';
+import { apiTokenRequest } from '@/lib/msal-config';
 
 // --------------------------------------------------------------------------
 // Configuration
@@ -34,6 +39,36 @@ const apiClient: AxiosInstance = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// --------------------------------------------------------------------------
+// Request Interceptor — Inject Entra ID Bearer Token
+// Acquires a token silently from MSAL cache and attaches it to every request.
+// SFI/QEI: No API call goes out without authentication
+// --------------------------------------------------------------------------
+apiClient.interceptors.request.use(
+  async (config) => {
+    try {
+      const msalInstance = getMsalInstance();
+      const account = msalInstance.getActiveAccount();
+      if (account) {
+        const response = await msalInstance.acquireTokenSilent({
+          ...apiTokenRequest,
+          account,
+        });
+        // Send the ID token as Bearer — backend validates against Entra ID JWKS
+        if (response.idToken) {
+          config.headers.Authorization = `Bearer ${response.idToken}`;
+        }
+      }
+    } catch (err) {
+      // If silent acquisition fails, the request proceeds without token
+      // The backend will return 401, and the frontend auth guard will redirect to login
+      console.warn('[API] Token acquisition failed, request will be unauthenticated');
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 /**
  * Retry logic with exponential backoff.

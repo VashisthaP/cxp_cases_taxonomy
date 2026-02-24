@@ -2,19 +2,21 @@
 // MSAL.js Configuration — Entra ID SSO with PKCE (Secret-Free)
 // Uses Authorization Code Flow with PKCE for public SPA clients.
 // No client secret required — code_verifier + code_challenge per login.
+//
+// SFI/QEI: Client ID and Tenant ID from environment variables
 // ==========================================================================
 
 import { Configuration, LogLevel } from '@azure/msal-browser';
 
 // --------------------------------------------------------------------------
-// Entra ID App Registration Details
+// Entra ID App Registration Details (from environment variables)
 // --------------------------------------------------------------------------
 
 /** Application (client) ID from Azure AD App Registration */
-const CLIENT_ID = 'dc467a59-8f04-4731-9d01-adb99e237436';
+const CLIENT_ID = process.env.NEXT_PUBLIC_AZURE_CLIENT_ID || 'dc467a59-8f04-4731-9d01-adb99e237436';
 
 /** Tenant ID — Microsoft Field Led Sandbox */
-const TENANT_ID = '9329c02a-4050-4798-93ae-b6e37b19af6d';
+const TENANT_ID = process.env.NEXT_PUBLIC_AZURE_TENANT_ID || '9329c02a-4050-4798-93ae-b6e37b19af6d';
 
 /** Authority URL for single-tenant auth */
 const AUTHORITY = `https://login.microsoftonline.com/${TENANT_ID}`;
@@ -72,5 +74,12 @@ export const msalConfig: Configuration = {
 
 /** Login request scopes (openid + profile + email gives us ID token claims) */
 export const loginRequest = {
+  scopes: ['openid', 'profile', 'email'],
+};
+
+/** Token request for backend API calls — uses the same scopes.
+ * The ID token from this request is sent as Bearer token to the backend.
+ */
+export const apiTokenRequest = {
   scopes: ['openid', 'profile', 'email'],
 };

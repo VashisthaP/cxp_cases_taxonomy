@@ -5,20 +5,19 @@
 // GET    /api/cases/{id}  - Get a single case by Case ID
 // PUT    /api/cases/{id}  - Update an existing case
 // DELETE /api/cases/{id}  - Delete a case
+//
+// SFI/QEI: JWT auth required, CORS locked, errors sanitized
 // ==========================================================================
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { ensureDbInitialized, queryWithRetry } from '../database';
 import { generateEmbedding, buildCaseEmbeddingText } from '../openai';
-
-// --------------------------------------------------------------------------
-// CORS Headers (for Next.js frontend)
-// --------------------------------------------------------------------------
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+import {
+  authenticateRequest,
+  unauthorizedResponse,
+  safeErrorResponse,
+  getCorsHeaders,
+} from '../auth-middleware';
 
 // --------------------------------------------------------------------------
 // CREATE CASE - POST /api/cases
@@ -28,8 +27,16 @@ async function createCase(
   context: InvocationContext
 ): Promise<HttpResponseInit> {
   context.log('[Cases] POST /api/cases - Create new case');
+  const origin = request.headers.get('origin');
+  const CORS_HEADERS = getCorsHeaders(origin);
 
   try {
+    // SFI: Authenticate the request
+    const user = await authenticateRequest(request);
+    if (!user) {
+      return unauthorizedResponse(origin);
+    }
+
     // Ensure database schema is initialized
     await ensureDbInitialized();
 
@@ -57,7 +64,7 @@ async function createCase(
         headers: CORS_HEADERS,
         jsonBody: {
           success: false,
-          error: `Duplicate Case ID: "${caseId}" already exists. Each case must have a unique ID.`,
+          error: 'Duplicate Case ID. This case already exists.',
         },
       };
     }
@@ -69,10 +76,10 @@ async function createCase(
       embedding = await generateEmbedding(embeddingText);
     } catch (embeddingError: any) {
       // Edge Case: Missing/failed embedding - log but don't fail the case creation
-      context.warn('[Cases] Embedding generation failed, saving case without embedding:', embeddingError.message);
+      context.warn('[Cases] Embedding generation failed, saving case without embedding');
     }
 
-    // Insert into database
+    // Insert into database — reviewer_email set from authenticated user
     const result = await queryWithRetry(
       `INSERT INTO cases (
         case_id, case_reviewed, ta_name, ta_reviewer_notes,
@@ -103,7 +110,7 @@ async function createCase(
         body.icm_linked ?? false,
         body.next_action_sna ?? '',
         body.source_of_resolution ?? '',
-        body.reviewer_email ?? '',
+        user.email,  // reviewer_email from authenticated user
         ...(embedding.length > 0 ? [JSON.stringify(embedding)] : []),
       ]
     );
@@ -125,11 +132,7 @@ async function createCase(
     };
   } catch (error: any) {
     context.error('[Cases] Create case error:', error.message);
-    return {
-      status: 500,
-      headers: CORS_HEADERS,
-      jsonBody: { success: false, error: `Failed to create case: ${error.message}` },
-    };
+    return safeErrorResponse(500, 'Failed to create case. Please try again.', request.headers.get('origin'));
   }
 }
 
@@ -141,8 +144,16 @@ async function listCases(
   context: InvocationContext
 ): Promise<HttpResponseInit> {
   context.log('[Cases] GET /api/cases - List cases');
+  const origin = request.headers.get('origin');
+  const CORS_HEADERS = getCorsHeaders(origin);
 
   try {
+    // SFI: Authenticate the request
+    const user = await authenticateRequest(request);
+    if (!user) {
+      return unauthorizedResponse(origin);
+    }
+
     await ensureDbInitialized();
 
     // Parse query parameters
@@ -228,11 +239,7 @@ async function listCases(
     };
   } catch (error: any) {
     context.error('[Cases] List cases error:', error.message);
-    return {
-      status: 500,
-      headers: CORS_HEADERS,
-      jsonBody: { success: false, error: `Failed to list cases: ${error.message}` },
-    };
+    return safeErrorResponse(500, 'Failed to list cases. Please try again.', request.headers.get('origin'));
   }
 }
 
@@ -245,8 +252,16 @@ async function getCaseById(
 ): Promise<HttpResponseInit> {
   const caseId = request.params.caseId;
   context.log(`[Cases] GET /api/cases/${caseId} - Get case by ID`);
+  const origin = request.headers.get('origin');
+  const CORS_HEADERS = getCorsHeaders(origin);
 
   try {
+    // SFI: Authenticate the request
+    const user = await authenticateRequest(request);
+    if (!user) {
+      return unauthorizedResponse(origin);
+    }
+
     await ensureDbInitialized();
 
     const result = await queryWithRetry(
@@ -274,12 +289,8 @@ async function getCaseById(
       jsonBody: { success: true, data: result.rows[0] },
     };
   } catch (error: any) {
-    context.error(`[Cases] Get case ${caseId} error:`, error.message);
-    return {
-      status: 500,
-      headers: CORS_HEADERS,
-      jsonBody: { success: false, error: `Failed to get case: ${error.message}` },
-    };
+    context.error(`[Cases] Get case error:`, error.message);
+    return safeErrorResponse(500, 'Failed to get case. Please try again.', request.headers.get('origin'));
   }
 }
 
@@ -292,8 +303,16 @@ async function updateCase(
 ): Promise<HttpResponseInit> {
   const caseId = request.params.caseId;
   context.log(`[Cases] PUT /api/cases/${caseId} - Update case`);
+  const origin = request.headers.get('origin');
+  const CORS_HEADERS = getCorsHeaders(origin);
 
   try {
+    // SFI: Authenticate the request
+    const user = await authenticateRequest(request);
+    if (!user) {
+      return unauthorizedResponse(origin);
+    }
+
     await ensureDbInitialized();
 
     // Verify case exists
@@ -318,11 +337,11 @@ async function updateCase(
       const embeddingText = buildCaseEmbeddingText({ ...body, case_id: caseId });
       const embedding = await generateEmbedding(embeddingText);
       if (embedding.length > 0) {
-        embeddingClause = ', embedding = $17';
+        embeddingClause = ', embedding = $18';
         embeddingParams.push(JSON.stringify(embedding));
       }
     } catch (embeddingError: any) {
-      context.warn('[Cases] Embedding update failed:', embeddingError.message);
+      context.warn('[Cases] Embedding update failed');
     }
 
     const result = await queryWithRetry(
@@ -342,9 +361,10 @@ async function updateCase(
         icm_linked = $13,
         next_action_sna = $14,
         source_of_resolution = $15,
+        reviewer_email = $16,
         updated_at = NOW()
         ${embeddingClause}
-      WHERE case_id = $16
+      WHERE case_id = $17
       RETURNING id, case_id, case_reviewed, ta_name, ta_reviewer_notes,
                 case_type, issue_type, fqr_accurate, fqr_help_resolve,
                 idle_over_8_hours, idleness_reason, collab_wait_reason, pg_wait_reason,
@@ -367,6 +387,7 @@ async function updateCase(
         body.icm_linked ?? false,
         body.next_action_sna ?? '',
         body.source_of_resolution ?? '',
+        user.email,  // reviewer_email from authenticated user
         caseId,
         ...embeddingParams,
       ]
@@ -384,12 +405,8 @@ async function updateCase(
       },
     };
   } catch (error: any) {
-    context.error(`[Cases] Update case ${caseId} error:`, error.message);
-    return {
-      status: 500,
-      headers: CORS_HEADERS,
-      jsonBody: { success: false, error: `Failed to update case: ${error.message}` },
-    };
+    context.error(`[Cases] Update case error:`, error.message);
+    return safeErrorResponse(500, 'Failed to update case. Please try again.', request.headers.get('origin'));
   }
 }
 
@@ -402,8 +419,16 @@ async function deleteCase(
 ): Promise<HttpResponseInit> {
   const caseId = request.params.caseId;
   context.log(`[Cases] DELETE /api/cases/${caseId} - Delete case`);
+  const origin = request.headers.get('origin');
+  const CORS_HEADERS = getCorsHeaders(origin);
 
   try {
+    // SFI: Authenticate the request
+    const user = await authenticateRequest(request);
+    if (!user) {
+      return unauthorizedResponse(origin);
+    }
+
     await ensureDbInitialized();
 
     const result = await queryWithRetry(
@@ -430,12 +455,8 @@ async function deleteCase(
       },
     };
   } catch (error: any) {
-    context.error(`[Cases] Delete case ${caseId} error:`, error.message);
-    return {
-      status: 500,
-      headers: CORS_HEADERS,
-      jsonBody: { success: false, error: `Failed to delete case: ${error.message}` },
-    };
+    context.error(`[Cases] Delete case error:`, error.message);
+    return safeErrorResponse(500, 'Failed to delete case. Please try again.', request.headers.get('origin'));
   }
 }
 
@@ -446,7 +467,7 @@ async function corsHandler(
   request: HttpRequest,
   context: InvocationContext
 ): Promise<HttpResponseInit> {
-  return { status: 204, headers: CORS_HEADERS };
+  return { status: 204, headers: getCorsHeaders(request.headers.get('origin')) };
 }
 
 // --------------------------------------------------------------------------

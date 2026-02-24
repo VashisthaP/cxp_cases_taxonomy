@@ -111,9 +111,8 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
     supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
     allowBlobPublicAccess: false
-    // SFI: Disable shared key access — forces Entra ID (AAD) authN
-    // NOTE: Azure Functions Consumption plan requires shared key for AzureWebJobsStorage.
-    // Set to true only when using Managed Identity binding for Functions storage.
+    // SFI: Consumption plan requires shared key for AzureWebJobsStorage
+    // Once migrated to Flex Consumption with MI, set this to false
     allowSharedKeyAccess: true
     defaultToOAuthAuthentication: true
     networkAcls: {
@@ -142,10 +141,8 @@ resource openAi 'Microsoft.CognitiveServices/accounts@2024-04-01-preview' = {
   properties: {
     customSubDomainName: openAiName
     publicNetworkAccess: 'Enabled'
-    // SFI: Disable local API key auth — use Managed Identity in production
-    // NOTE: Currently using API key in Function App settings; set to true
-    // and switch to DefaultAzureCredential when Managed Identity is configured.
-    disableLocalAuth: false
+    // SFI: Disable local API key auth — use Managed Identity only
+    disableLocalAuth: true
   }
 }
 
@@ -279,6 +276,10 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
     project: projectName
     environment: environment
   }
+  // SFI: System-assigned managed identity for key-free access to Azure resources
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
@@ -330,14 +331,10 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'PGSSLMODE'
           value: 'require'
         }
-        // Azure OpenAI configuration (auto-populated from provisioned resource)
+        // Azure OpenAI — endpoint only (managed identity used for auth)
         {
           name: 'AZURE_OPENAI_ENDPOINT'
           value: openAi.properties.endpoint
-        }
-        {
-          name: 'AZURE_OPENAI_API_KEY'
-          value: openAi.listKeys().key1
         }
         {
           name: 'AZURE_OPENAI_DEPLOYMENT_NAME'
@@ -347,6 +344,24 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'AZURE_OPENAI_EMBEDDING_DEPLOYMENT'
           value: 'text-embedding-ada-002'
         }
+        // SFI: Enable managed identity for OpenAI and PostgreSQL
+        {
+          name: 'AZURE_USE_MANAGED_IDENTITY'
+          value: 'true'
+        }
+        // Entra ID configuration for JWT validation
+        {
+          name: 'AZURE_TENANT_ID'
+          value: '9329c02a-4050-4798-93ae-b6e37b19af6d'
+        }
+        {
+          name: 'AZURE_CLIENT_ID'
+          value: 'dc467a59-8f04-4731-9d01-adb99e237436'
+        }
+        {
+          name: 'ALLOWED_ORIGIN'
+          value: 'https://green-sky-059fc5900.1.azurestaticapps.net'
+        }
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
           value: '1'
@@ -355,12 +370,28 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
       cors: {
         allowedOrigins: [
           'http://localhost:3000'
-          'https://${functionAppName}.azurewebsites.net'
-          '*'
+          'https://green-sky-059fc5900.1.azurestaticapps.net'
         ]
         supportCredentials: false
       }
     }
+  }
+}
+
+// --------------------------------------------------------------------------
+// Role Assignments — Managed Identity Access
+// SFI/QEI: Function App's managed identity gets key-free access
+// --------------------------------------------------------------------------
+
+// Cognitive Services OpenAI User role (for AI chat + embeddings)
+// Role ID: 5e0bd9bd-7b93-4f28-af87-19fc36ad61bd
+resource openAiRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(functionApp.id, openAi.id, '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+  scope: openAi
+  properties: {
+    principalId: functionApp.identity.principalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')
+    principalType: 'ServicePrincipal'
   }
 }
 

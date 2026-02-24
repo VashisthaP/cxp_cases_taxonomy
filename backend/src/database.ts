@@ -2,27 +2,75 @@
 // PostgreSQL Database Connection Pool
 // Implements connection pooling with retry logic for Azure Database
 // for PostgreSQL (Flexible Server) with pgvector extension
+//
+// SFI/QEI Compliance:
+//   - No hardcoded credentials (env vars only)
+//   - Managed identity support via @azure/identity (when enabled)
+//   - TLS certificate validation enabled for Azure PostgreSQL
+//   - No infrastructure details leaked in logs
 // ==========================================================================
 
 import pg from 'pg';
+import { DefaultAzureCredential } from '@azure/identity';
+
 const { Pool } = pg;
 
 // --------------------------------------------------------------------------
-// Configuration from environment variables
+// Configuration from environment variables (NO hardcoded fallbacks)
 // --------------------------------------------------------------------------
-const DB_CONFIG = {
-  host: process.env.PGHOST || 'localhost',
-  port: parseInt(process.env.PGPORT || '5432', 10),
-  user: process.env.PGUSER || 'warroom_admin',
-  password: process.env.PGPASSWORD || '',
-  database: process.env.PGDATABASE || 'warroom_cases',
-  ssl: process.env.PGSSLMODE === 'require' ? { rejectUnauthorized: false } : undefined,
+const PGHOST = process.env.PGHOST || '';
+const PGPORT = parseInt(process.env.PGPORT || '5432', 10);
+const PGUSER = process.env.PGUSER || '';
+const PGPASSWORD = process.env.PGPASSWORD || '';
+const PGDATABASE = process.env.PGDATABASE || '';
+const PGSSLMODE = process.env.PGSSLMODE || '';
+const USE_MANAGED_IDENTITY = process.env.AZURE_USE_MANAGED_IDENTITY === 'true';
+
+// Azure Database for PostgreSQL uses DigiCert Global Root G2 CA
+// which is in Node.js default CA bundle — rejectUnauthorized: true is correct
+const DB_CONFIG: pg.PoolConfig = {
+  host: PGHOST,
+  port: PGPORT,
+  user: PGUSER,
+  password: PGPASSWORD,
+  database: PGDATABASE,
+  ssl: PGSSLMODE === 'require' ? { rejectUnauthorized: true } : undefined,
 
   // Connection pool settings optimized for Azure Functions
-  max: 10, // Maximum pool connections (shared across function invocations)
-  idleTimeoutMillis: 30000, // Close idle connections after 30s
-  connectionTimeoutMillis: 10000, // Fail connection attempt after 10s
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
 };
+
+// --------------------------------------------------------------------------
+// Managed Identity Token Refresh for PostgreSQL AAD Auth
+// --------------------------------------------------------------------------
+const credential = USE_MANAGED_IDENTITY ? new DefaultAzureCredential() : null;
+
+/**
+ * Refresh the password with a managed identity token for Azure PostgreSQL.
+ * Token scope: https://ossrdbms-aad.database.windows.net/.default
+ */
+async function refreshManagedIdentityToken(): Promise<void> {
+  if (!credential) return;
+
+  try {
+    const tokenResponse = await credential.getToken(
+      'https://ossrdbms-aad.database.windows.net/.default'
+    );
+    if (tokenResponse?.token) {
+      DB_CONFIG.password = tokenResponse.token;
+      // Recreate pool with new token if it exists
+      if (pool) {
+        await pool.end().catch(() => {});
+        pool = null;
+      }
+    }
+  } catch (error: any) {
+    console.error('[DB] Managed identity token acquisition failed:', error.message);
+    throw error;
+  }
+}
 
 // --------------------------------------------------------------------------
 // Singleton pool instance (re-used across function invocations)
@@ -42,7 +90,8 @@ export function getPool(): pg.Pool {
       console.error('[DB] Unexpected pool error:', err.message);
     });
 
-    console.log(`[DB] Pool created: ${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}`);
+    // SFI: Do not log host/port/database — avoid infrastructure details in logs
+    console.log('[DB] Connection pool created');
   }
   return pool;
 }
@@ -50,6 +99,7 @@ export function getPool(): pg.Pool {
 /**
  * Execute a query with automatic retry on transient connection errors.
  * Retries up to 3 times with exponential backoff.
+ * Handles managed identity token refresh on auth failures (28P01).
  *
  * @param text - SQL query string
  * @param params - Query parameters
@@ -79,12 +129,25 @@ export async function queryWithRetry(
         error.code === '57P03' || // cannot_connect_now
         error.code === '08006' || // connection_failure
         error.code === '08001' || // sqlclient_unable_to_establish_sqlconnection
-        error.code === '08004';   // sqlserver_rejected_establishment_of_sqlconnection
+        error.code === '08004' || // sqlserver_rejected_establishment_of_sqlconnection
+        error.code === '28P01';   // invalid_password (token may have expired)
+
+      // If auth error with managed identity, refresh the token
+      if (error.code === '28P01' && USE_MANAGED_IDENTITY) {
+        console.warn('[DB] Auth failed, refreshing managed identity token...');
+        try {
+          await refreshManagedIdentityToken();
+        } catch (tokenErr) {
+          // Token refresh failed — don't retry
+          throw error;
+        }
+      }
 
       if (isRetryable && attempt < MAX_RETRIES) {
         const delay = Math.pow(2, attempt) * 500; // 1s, 2s, 4s
+        // SFI: Only log error code, not full message (may contain connection details)
         console.warn(
-          `[DB] Retry ${attempt}/${MAX_RETRIES} after ${delay}ms - Error: ${error.code} ${error.message}`
+          `[DB] Retry ${attempt}/${MAX_RETRIES} after ${delay}ms - Error code: ${error.code}`
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
       } else if (!isRetryable) {
@@ -238,16 +301,29 @@ export async function initializeDatabase(): Promise<void> {
   }
 }
 
-// Track initialization state
-let dbInitialized = false;
+// Track initialization state with a promise lock to prevent race conditions
+let dbInitPromise: Promise<void> | null = null;
 
 /**
  * Ensure the database is initialized before processing requests.
- * Safe to call multiple times - only runs initialization once.
+ * Uses a promise lock to prevent concurrent initialization attempts
+ * (race condition fix — multiple Azure Function invocations can call this simultaneously).
  */
 export async function ensureDbInitialized(): Promise<void> {
-  if (!dbInitialized) {
-    await initializeDatabase();
-    dbInitialized = true;
+  if (dbInitPromise) {
+    return dbInitPromise;
   }
+
+  // If using managed identity, refresh token before first connection
+  if (USE_MANAGED_IDENTITY && !pool) {
+    await refreshManagedIdentityToken();
+  }
+
+  dbInitPromise = initializeDatabase().catch((err) => {
+    // Reset so next call retries
+    dbInitPromise = null;
+    throw err;
+  });
+
+  return dbInitPromise;
 }
